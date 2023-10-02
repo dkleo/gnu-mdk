@@ -1,0 +1,5 @@
+Douglas Laing      <dlaing@telkomsa.net> - Wrote the original mix package
+available from http://home.telkomsa.net/dlaing/
+
+Sergey Poznyakoff  <gray@gnu.org>        - Added source debugger, disassembler,
+configuration suite and some minor hacks. See README.

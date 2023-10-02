@@ -1,0 +1,331 @@
+% This file is part of MIX
+% Copyright (C) 1998, 1999, 2000 Douglas Laing
+% Copyright (C) 2000, 2005, 2007 Sergey Poznyakoff
+%
+% This program is free software; you can redistribute it and/or
+% modify it under the terms of the GNU General Public License as
+% published by the Free Software Foundation; either version 3, or (at
+% your option) any later version.
+%
+% This program is distributed in the hope that it will be useful, but
+% WITHOUT ANY WARRANTY; without even the implied warranty of
+% MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+% General Public License for more details.
+%
+% You should have received a copy of the GNU General Public License
+% along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+% Redefine \vb. I don't want each syntax rule be enclosed in box.
+\def\vb#1{\.{#1}}
+     
+@ Declarations for AT\&T lex.
+@c
+%a @, 4000 @/     
+%e @, 4000 @/
+%p @, 4000 @/
+
+@*1 C prologue.
+@c
+%{    
+#ifdef HAVE_CONFIG_H
+# include <config.h>
+#endif
+#include <mixasm.h>
+#include <mixal.h>
+#include <string.h>
+#include <ctype.h>
+
+@ |label| keeps the current label identifier.
+@c 
+char label[11] = " ";
+
+@ Copy |size| characters from |ptr| into |yylval.literal|. The
+remaining space between |yylval.literal[size]| and
+|yylval.literal[sizeof(yylval.literal)-1]| is filled with space
+characters.
+
+@c
+static char *
+copy_alf(char *ptr, int size)
+{
+     int i;
+     for (i = 0; i < size; i++)
+	  yylval.literal[i] = ptr[i];
+     for (; i < sizeof(yylval.literal)-1; i++)
+	  yylval.literal[i] = ' ';
+     yylval.literal[i] = 0;
+     return yylval.literal;
+}
+
+@ Each line of \.{MIXAL} code can reference one of at most 18 possible
+local labels. Among these, the back-referenced labels (|9B| through
+|1B|)  must already exist. The forward-referenced labels (|1F| through 
+|9F|) will spring into existence later, when their |H| equivalent
+appears in the text.
+
+Each local label (|1H| through |9H|) is assigned a unique sequence
+number that identifies it among a set of labels with the same
+name. These sequence numbers are kept in array |local_num|. The array
+is indexed by the number of local label (e.g. |1| for |1H|), so its
+|0|th slot is not used. A local label is assigned a ``global name''
+that is used to keep it in \.{mixal} symbol table. Such global name is
+constructed concatenating label local number, a dash and label
+sequence number, surrounded by vertical bars (a  vertical bar is not
+present in \.{MIX} character set, so it is useful to discern local
+labels from valid \.{MIX} identifiers).
+
+The sequence for local label |n| is incremented each time a symbol
+|nH| is declared. So, to reference |nB| |local_num[n]| is used. To
+reference |nF| label, |local_num[n]@t$+1$@>| is used.
+
+@c     
+int local_num[10] = { 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 };
+
+@ Create a global name for local variable |n|. |Bias| is added to
+sequence number before creating the name.
+@
+@c     
+static char *
+localname(int n, int bias)
+{
+     static char name[64];
+     sprintf(name, "|%d-%d|", n, local_num[n] + bias);
+     return name;
+}
+
+@
+@c
+%}
+
+@ Lex variables 
+@c
+@=symbol [A-Z0-9]*[A-Z][A-Z0-9]*@> @/
+@=pseudo EQU|ORIG|CON|END@> @/
+@=number [0-9]+@> @/
+@=asterisk \*@>   @/
+@=slashes \/\/@>  @/
+
+@ Declare states
+@c
+%s @,  COMMENT @/
+%s @,  OP      @/
+%s @,  ADDRESS @/
+
+@*1 LEX RULES.
+
+@
+@c
+@=%%@>
+
+@
+@c
+@=^{symbol} {@>
+     if (strlen(yytext) > 10) {
+	  yyerror("Symbol longer than 10 characters");
+	  yytext[10] = '\0';
+     }
+     if (localref(yytext,"H")) {
+	  char *name = localname(yytext[0] - '0', 0);
+	  local_num[yytext[0] - '0']++;
+	  if (!(yylval.symp = lookup(name))) {
+	       yylval.symp = install(name, 0, 0);
+	       yylval.symp->type = DEF;
+	  }
+     } else if ((yylval.symp = lookup(yytext))) {
+	  if (yylval.symp->type != UNDEF) 
+	       parse_error("duplicate symbol: %s", yytext);
+     } else {
+	  yylval.symp = install(yytext,0,0);
+	  yylval.symp->type = UNDEF;
+     }  
+     strcpy(label,yytext);
+     return LOC;
+}
+
+@
+@c
+@=^\*       {@> BEGIN(COMMENT); tlist("*"); return ASTERISK;}
+
+@
+@c
+@=<COMMENT>[^\n]* {@>
+     yylval.txt = yytext;
+     tlist("%s", yytext);
+     return TEXT;
+}
+
+@
+@c
+@=<COMMENT>\n {@>
+     BEGIN(INITIAL);
+     tlist("\n");
+     return yytext[0];
+}
+
+@
+@c
+@=<INITIAL>[ \t]+ {@>
+     tlist("%-10s ",label);
+     strcpy(label," ");
+     BEGIN(OP);
+}
+
+@
+@c
+@=<OP>{pseudo} {@>
+     strcpy(yylval.literal, yytext);
+     tlist("%-4s ",yytext);
+     return PSEUDO;
+}
+
+@
+@c
+@=<OP>{symbol} {@>
+     yylval.opcode = lookup_op(yytext);
+     if (!yylval.opcode) {
+	  yyerror("Invalid op code");
+	  return BOGUS;
+     }
+     tlist("%-4s ",yytext);
+     return OPCODE;
+}
+
+@
+@c
+@=<OP>ALF[ ][^\n]+/\n {@>
+     int i = (yytext[4] == ' ') ? 5 : 4;
+     int length = yyleng-i;
+     char *s;
+     if (length > 5) {
+	  if (isspace(yytext[i]))
+	       warning("Literal sequence too long (Too many spaces after ALF?)",
+                       NULL);
+	  else
+	       warning("Literal sequence too long", NULL);
+          length = 5;
+     }
+     
+     s = copy_alf(yytext+i, length);
+     tlist("ALF  %s", s);
+     BEGIN(COMMENT);
+     return ALF;
+}
+
+@
+@c
+@=<OP>[ \t]+ {@> BEGIN(ADDRESS); } 
+
+@
+@c
+@=<OP>[^ \t\n]+ {@> yyerror("Invalid op code"); }
+
+@
+@c
+@=<ADDRESS>{symbol} {@>
+     if (strlen(yytext) > 10) {
+	  yyerror("Symbol longer than 10 characters");
+	  yytext[10] = '\0';
+     }
+     tlist("%s", yytext);
+     if (localref(yytext, "B")) {
+	  char *name = localname(yytext[0] - '0',-1);
+	  if (!(yylval.symp = lookup(name))) {
+	       yyerror("missing backward 'here'");
+	       /* Make sure we return something useful */
+	       yylval.symp = install(name,0,0);
+	       yylval.symp->type = UNDEF;
+	       local_num[yytext[0] - '0']++; /* Mark the symbol defined */
+	  }
+	  return LOCAL_SYMBOL;
+     } else if (localref(yytext, "F")) {
+	  char *name = localname(yytext[0] - '0', 0);
+	  if (!(yylval.symp = lookup(name))) {
+	       yylval.symp = install(name,0,0);
+	       yylval.symp->type = UNDEF;
+	  }
+	  return FUTURE_REFERENCE;
+     } else if (!(yylval.symp = lookup(yytext))) {
+	  yylval.symp = install(yytext,0,0);
+	  yylval.symp->type = UNDEF;
+	  return FUTURE_REFERENCE; 
+     } else if (yylval.symp->type == UNDEF)
+	  return FUTURE_REFERENCE;
+     else
+	  return DEFINED_SYMBOL;
+}
+
+@
+@c
+@=<ADDRESS>{number}   {@>
+     if (strlen(yytext) > 10) {
+	  yyerror("Number greater than 10 digits");
+	  yytext[10] = '\0';
+     }
+     tlist("%s",yytext);
+     yylval.val = atoi(yytext);
+     if (yylval.val > 1073741823)
+	  yyerror("Number greater than 1073741823");
+     return NUMBER;
+}
+
+@
+@c
+@=<ADDRESS>{asterisk} {@> tlist("*"); return ASTERISK; }
+
+@
+@c
+@=<ADDRESS>{slashes}  {@> tlist("//"); return SLASHES; }
+
+@
+@c
+@=<ADDRESS>[^ \t\n] {@> tlist("%c",*yytext); return yytext[0]; }
+
+@
+@c
+@=<ADDRESS>[ \t]*  {@> tlist("%s",yytext); BEGIN(COMMENT); } 
+
+@
+@c
+@=<ADDRESS>[\n] {@> BEGIN(INITIAL); tlist("\n"); return yytext[0]; }
+
+@
+@c
+@=[ \t\n]       {@> BEGIN(INITIAL); tlist("%c",yytext[0]); return yytext[0]; }
+
+@
+@c
+@=.	        {@> parse_error("invalid input:", yytext); }
+
+@
+@c
+@=%%@>
+
+@*1 C trailer.
+
+@c
+int
+yywrap()
+{
+     return 1;
+}
+
+@
+@c
+void
+init_lex(FILE *fp, int debug)
+{
+#ifdef FLEX_DEBUG
+     yy_flex_debug = debug;
+#endif
+     yyin = fp;
+}
+
+@
+@c
+void
+reset_lex()
+{
+     BEGIN(INITIAL);
+}
+
+	  

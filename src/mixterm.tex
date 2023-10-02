@@ -1,0 +1,1805 @@
+\input cwebmac
+% This file is part of MIX
+% Copyright (C) 2005, 2007 Sergey Poznyakoff
+%
+% This program is free software; you can redistribute it and/or modify
+% it under the terms of the GNU General Public License as published by
+% the Free Software Foundation; either version 3 of the License, or
+% (at your option) any later version.
+%
+% This program is distributed in the hope that it will be useful,
+% but WITHOUT ANY WARRANTY; without even the implied warranty of
+% MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+% GNU General Public License for more details.
+%
+% You should have received a copy of the GNU General Public License
+% along with this program.  If not, see <http://www.gnu.org/licenses/>.
+%
+
+\N{1}{1}A MIX TERMINAL.
+This provides a terminal shell for the MIX simulator. The shell supports
+following commands:
+
+
+\tabskip=1em \halign{%
+\strut\sc#\hfil&\strut\sc#\hfil&\strut{\raggedright#}\cr
+{\bf Synopsis}    & {\bf Minimal abbreviation}& {\bf Short description}\cr
+ASGN {\it devnum} {\it unix-path} & A & Assign a file to \.{MIX} device.\cr
+BREAK {\it addr}  & B & Set breakpoint on address.\cr
+BREAK TEMP {\it addr} & BT {\it or} TB & Set a temporary breakpoint.\cr
+CLEAR {\it n} & C & Alias for {\sc DELETE}.\cr
+CONT              & CO  & Continue after a breakpoint.\cr
+DELETE {\it n} & D & Clear breakpoint {\it n}.\cr
+DISASSEMBLE [{\it addr} [{\it addr}]] & & Alias for {\sc UNASM}.\cr
+DUMP              & DU & Dump \.{MIX} machine state.\cr
+DUMP REGISTERS    & DR & Dump \.{MIX} registers.\cr
+DUMP MEMORY [{\it addr} [{\it addr}]]  & DM & Dump memory contents.\cr
+IGNORE {\it n} {\it count} & IG & Ignore next {\it count} crossings of
+breakpoint {\it n}.\cr
+INFO              & & Alias for {\sc LIST}.\cr
+GO                & G & Run program.\cr
+HELP [{\it command}] & ? & Print a short usage summary.\cr
+LIST BREAK        & LB & List breakpoints.\cr
+LIST IO [{\it devnum}]  & LI & List {\sc I/O} devices.\cr
+PASSCOUNT {\it n} {\it count} & T & Clear breakpoint {\it n} after {\it count}
+crossings.\cr
+NEXT [{\it count}]  & N & Execute next {\it count} instructions (default is 1).%
+\cr
+RUN               & & Run program.\cr
+SHELL [{\it command}] & ! & Execute a shell command.\cr
+SOURCE {\it file} & SO & Read commands from {\it file}.\cr
+STEP [{\it count}] & S & Execute next {\it count} instructions,
+stepping into calls.\cr
+UNASM [{\it addr} [{\it addr}]] & U & Disassemble.\cr
+VERSION           & V & Show program version and short licensing information.%
+\cr
+QUIT              & Q & Quit the terminal.\cr}
+
+Breakpoint manipulation commands (\.{DELETE}, \.{IGNORE}, \.{ENABLE},
+\.{DISABLE}, and \.{PASSCOUNT}) address breakpoints by their sequence number,
+unless prefixed with \.{ADDRESS}, in which case breakpoints are referred to
+by the \.{MIX} address they are set to. For example:
+
+Disable breakpoint number 2:
+
+{\parindent = 5em\indent {\sc ENABLE} 2}
+
+Disable all breakpoints on address 1000:
+
+{\parindent = 5em\indent {\sc ADDRESS ENABLE} 1000}
+
+\fi
+
+\M{2}Definitions
+\Y\B\4\D$\.{T\_EOL}$ \5
+\.{'\\n'}\par
+\B\4\D$\.{T\_NUMBER}$ \5
+\T{256}\par
+\B\4\D$\.{T\_STRING}$ \5
+\T{257}\par
+\B\4\D$\.{T\_BREAK}$ \5
+\T{258}\par
+\B\4\D$\.{T\_TEMP}$ \5
+\T{259}\par
+\B\4\D$\.{T\_BT}$ \5
+\T{260}\par
+\B\4\D$\.{T\_DELETE}$ \5
+\T{261}\par
+\B\4\D$\.{T\_ENABLE}$ \5
+\T{262}\par
+\B\4\D$\.{T\_DISABLE}$ \5
+\T{263}\par
+\B\4\D$\.{T\_IGNORE}$ \5
+\T{264}\par
+\B\4\D$\.{T\_PASSCOUNT}$ \5
+\T{265}\par
+\B\4\D$\.{T\_LIST}$ \5
+\T{266}\par
+\B\4\D$\.{T\_LB}$ \5
+\T{267}\par
+\B\4\D$\.{T\_NEXT}$ \5
+\T{268}\par
+\B\4\D$\.{T\_STEP}$ \5
+\T{269}\par
+\B\4\D$\.{T\_ASGN}$ \5
+\T{270}\par
+\B\4\D$\.{T\_GO}$ \5
+\T{271}\par
+\B\4\D$\.{T\_DUMP}$ \5
+\T{272}\par
+\B\4\D$\.{T\_REGISTERS}$ \5
+\T{273}\par
+\B\4\D$\.{T\_DR}$ \5
+\T{274}\par
+\B\4\D$\.{T\_MEMORY}$ \5
+\T{275}\par
+\B\4\D$\.{T\_DM}$ \5
+\T{276}\par
+\B\4\D$\.{T\_IO}$ \5
+\T{277}\par
+\B\4\D$\.{T\_LI}$ \5
+\T{278}\par
+\B\4\D$\.{T\_QUIT}$ \5
+\T{279}\par
+\B\4\D$\.{T\_CONT}$ \5
+\T{280}\par
+\B\4\D$\.{T\_UNASM}$ \5
+\T{281}\par
+\B\4\D$\.{T\_ADDRESS}$ \5
+\T{282}\par
+\B\4\D$\.{T\_SHELL}$ \5
+\T{283}\par
+\B\4\D$\.{T\_HELP}$ \5
+\T{284}\par
+\B\4\D$\.{T\_SOURCE}$ \5
+\T{285}\par
+\B\4\D$\.{T\_VERSION}$ \5
+\T{286}\par
+\B\4\D$\.{MAX\_TOKENSIZE}$ \5
+\T{256}\par
+\B\4\D$\\{skipws}(\|p)$ \6
+\&{for} ( ; ${}{*}(\|p)\W\\{isspace}({*}(\|p));{}$ ${}(\|p)\PP){}$\1\5
+;\2\par
+\B\4\D$\\{getword}(\|p,\|l)$ \6
+\&{for} ( ; ${}(\|p)[\|l]\W\R\\{isspace}((\|p)[\|l]);{}$ ${}(\|l)\PP){}$\1\5
+;\2\par
+\fi
+
+\M{3}Header files to include
+\Y\B\8\#\&{ifdef} \.{HAVE\_CONFIG\_H}\6
+\8\#\&{include} \.{<config.h>}\6
+\8\#\&{endif}\6
+\8\#\&{include} \.{<stdlib.h>}\6
+\8\#\&{include} \.{<stdio.h>}\6
+\8\#\&{include} \.{<stdarg.h>}\6
+\8\#\&{include} \.{<unistd.h>}\6
+\8\#\&{include} \.{<sys/types.h>}\6
+\8\#\&{include} \.{<sys/stat.h>}\6
+\8\#\&{include} \.{<pwd.h>}\6
+\8\#\&{include} \.{<dirent.h>}\6
+\8\#\&{include} \.{<ctype.h>}\6
+\8\#\&{include} \.{<string.h>}\6
+\8\#\&{include} \.{<errno.h>}\6
+\8\#\&{include} \.{<mix.h>}\6
+\8\#\&{include} \.{<mixsim.h>}\6
+\8\#\&{ifdef} \.{WITH\_READLINE}\6
+\8\#\&{include} \.{<readline/readline.h}\)\.{>}\6
+\8\#\&{include} \.{<readline/history.h>}\6
+\8\#\&{endif}\6
+\8\#\&{include} \.{"xalloc.h"}\6
+\8\#\&{include} \.{"error.h"}\6
+\8\#\&{include} \.{"progname.h"}\par
+\fi
+
+\M{4}Forward declarations.
+\Y\B\8\#\&{ifdef} \.{WITH\_READLINE}\6
+\&{static} \&{char} ${}{*}{}$\\{compl\_address}(\&{const} \&{char} ${}{*}%
+\\{text},\39{}$\&{int} \\{state});\6
+\&{static} \&{char} ${}{*}{}$\\{compl\_asgn}(\&{const} \&{char} ${}{*}\\{text},%
+\39{}$\&{int} \\{state});\6
+\&{static} \&{char} ${}{*}{}$\\{compl\_break}(\&{const} \&{char} ${}{*}%
+\\{text},\39{}$\&{int} \\{state});\6
+\&{static} \&{char} ${}{*}{}$\\{compl\_dump}(\&{const} \&{char} ${}{*}\\{text},%
+\39{}$\&{int} \\{state});\6
+\&{static} \&{char} ${}{*}{}$\\{compl\_list}(\&{const} \&{char} ${}{*}\\{text},%
+\39{}$\&{int} \\{state});\6
+\&{static} \&{char} ${}{*}{}$\\{compl\_help}(\&{const} \&{char} ${}{*}\\{text},%
+\39{}$\&{int} \\{state});\6
+\&{static} \&{char} ${}{*}{}$\\{compl\_shell}(\&{const} \&{char} ${}{*}%
+\\{text},\39{}$\&{int} \\{state});\6
+\&{static} \&{char} ${}{*}{}$\\{compl\_source}(\&{const} \&{char} ${}{*}%
+\\{text},\39{}$\&{int} \\{state});\6
+\8\#\&{else}\6
+\8\#\&{define} \\{compl\_address} \5${}\NULL{}$\6
+\8\#\&{define} \\{compl\_asgn} \5${}\NULL{}$\6
+\8\#\&{define} \\{compl\_break} \5${}\NULL{}$\6
+\8\#\&{define} \\{compl\_dump} \5${}\NULL{}$\6
+\8\#\&{define} \\{compl\_list} \5${}\NULL{}$\6
+\8\#\&{define} \\{compl\_help} \5${}\NULL{}$\6
+\8\#\&{define} \\{compl\_shell} \5${}\NULL{}$\6
+\8\#\&{define} \\{compl\_source} \5${}\NULL{}$\6
+\8\#\&{endif}\6
+\&{int} \\{source\_file}(\&{char} ${}{*}\\{file},\39{}$\&{int} \\{quiet});\par
+\fi
+
+\M{5}
+\Y\B\&{struct} \&{command\_word} ${}\{$ \&{char} ${}{*}\\{longname};{}$\6
+\&{char} ${}{*}\\{shortname};{}$\6
+\&{int} \\{tok};\6
+\&{int} \\{first}; \&{char} ${}{*}$  ( $*$ $\Xcompl$ ) (\&{const} \&{char}
+${}{*}\\{str},\39{}$\&{int} \\{state}); $\}$ $\\{cword}[\,]\K\{{}$\6
+${}\{\.{"BREAK"},\39\.{"B"},\39\.{T\_BREAK},\39\T{1},\39\\{compl\_break}\},{}$\6
+${}\{\.{"TEMP"},\39\NULL,\39\.{T\_TEMP},\39\T{0}\},{}$\6
+${}\{\.{"BT"},\39\NULL,\39\.{T\_BT},\39\T{1}\},{}$\6
+${}\{\.{"TB"},\39\NULL,\39\.{T\_BT},\39\T{1}\},{}$\6
+${}\{\.{"CLEAR"},\39\.{"CL"},\39\.{T\_DELETE},\39\T{1}\},{}$\6
+${}\{\.{"CB"},\39\NULL,\39\.{T\_DELETE},\39\T{1}\},{}$\6
+${}\{\.{"PASSCOUNT"},\39\.{"P"},\39\.{T\_PASSCOUNT},\39\T{1}\},{}$\6
+${}\{\.{"INFO"},\39\NULL,\39\.{T\_LIST},\39\T{1},\39\\{compl\_list}\},{}$\6
+${}\{\.{"LIST"},\39\NULL,\39\.{T\_LIST},\39\T{1},\39\\{compl\_list}\},{}$\6
+${}\{\.{"LB"},\39\NULL,\39\.{T\_LB},\39\T{1}\},{}$\6
+${}\{\.{"ADDRESS"},\39\.{"AD"},\39\.{T\_ADDRESS},\39\T{1},\39\\{compl\_address}%
+\},{}$\6
+${}\{\.{"DELETE"},\39\.{"D"},\39\.{T\_DELETE},\39\T{1}\},{}$\6
+${}\{\.{"DISABLE"},\39\.{"DIS"},\39\.{T\_DISABLE},\39\T{1}\},{}$\6
+${}\{\.{"ENABLE"},\39\.{"ENA"},\39\.{T\_ENABLE},\39\T{1}\},{}$\6
+${}\{\.{"IGNORE"},\39\.{"I"},\39\.{T\_IGNORE},\39\T{1}\},{}$\6
+${}\{\.{"NEXT"},\39\.{"N"},\39\.{T\_NEXT},\39\T{1}\},{}$\6
+${}\{\.{"STEP"},\39\.{"S"},\39\.{T\_STEP},\39\T{1}\},{}$\6
+${}\{\.{"ASGN"},\39\.{"A"},\39\.{T\_ASGN},\39\T{1},\39\\{compl\_asgn}\},{}$\6
+${}\{\.{"GO"},\39\.{"G"},\39\.{T\_GO},\39\T{1}\},{}$\6
+${}\{\.{"RUN"},\39\NULL,\39\.{T\_GO},\39\T{1}\},{}$\6
+${}\{\.{"DUMP"},\39\.{"DU"},\39\.{T\_DUMP},\39\T{1},\39\\{compl\_dump}\},{}$\6
+${}\{\.{"REGISTERS"},\39\.{"REG"},\39\.{T\_REGISTERS},\39\T{0}\},{}$\6
+${}\{\.{"DR"},\39\NULL,\39\.{T\_DR},\39\T{1}\},{}$\6
+${}\{\.{"MEMORY"},\39\.{"MEM"},\39\.{T\_MEMORY},\39\T{0}\},{}$\6
+${}\{\.{"DM"},\39\NULL,\39\.{T\_DM},\39\T{1}\},{}$\6
+${}\{\.{"IO"},\39\NULL,\39\.{T\_IO},\39\T{0}\},{}$\6
+${}\{\.{"LIO"},\39\NULL,\39\.{T\_LI},\39\T{1}\},{}$\6
+${}\{\.{"CONTINUE"},\39\.{"C"},\39\.{T\_CONT},\39\T{1}\},{}$\6
+${}\{\.{"UNASM"},\39\.{"U"},\39\.{T\_UNASM},\39\T{1}\},{}$\6
+${}\{\.{"DISASSEMBLE"},\39\NULL,\39\.{T\_UNASM},\39\T{1}\},{}$\6
+${}\{\.{"HELP"},\39\.{"?"},\39\.{T\_HELP},\39\T{1},\39\\{compl\_help}\},{}$\6
+${}\{\.{"QUIT"},\39\.{"Q"},\39\.{T\_QUIT},\39\T{1}\},{}$\6
+${}\{\.{"SHELL"},\39\.{"!"},\39\.{T\_SHELL},\39\T{1},\39\\{compl\_shell}\},{}$\6
+${}\{\.{"SOURCE"},\39\.{"SO"},\39\.{T\_SOURCE},\39\T{1},\39\\{compl\_source}%
+\},{}$\6
+${}\{\.{"VERSION"},\39\.{"V"},\39\.{T\_VERSION},\39\T{1}\},{}$\6
+${}\{\T{0}\}{}$\6
+${}\}{}$;\par
+\fi
+
+\M{6}Find a \PB{\&{command\_word}} corresponding to command \PB{\\{str}}, \PB{%
+\\{len}} bytes long.
+Notice, thar \PB{\\{str}} is not necessarily nul-terminated.
+
+\Y\B\&{struct} \&{command\_word} ${}{*}{}$\\{find\_command\_word}(\&{const} %
+\&{char} ${}{*}\\{str},\39{}$\&{int} \\{len})\1\1\2\2\6
+${}\{{}$\1\6
+\&{struct} \&{command\_word} ${}{*}\\{cp};{}$\7
+\&{for} ${}(\\{cp}\K\\{cword};{}$ ${}\\{cp}\MG\\{longname};{}$ ${}\\{cp}\PP){}$%
+\5
+${}\{{}$\1\6
+\&{int} \\{ll}${}\K\\{strlen}(\\{cp}\MG\\{longname});{}$\7
+\&{if} ${}(\\{cp}\MG\\{shortname}){}$\5
+${}\{{}$\1\6
+\&{int} \\{sl}${}\K\\{strlen}(\\{cp}\MG\\{shortname});{}$\7
+\&{if} ${}(\\{sl}\E\\{len}\W\\{strncasecmp}(\\{cp}\MG\\{shortname},\39\\{str},%
+\39\\{len})\E\T{0}){}$\1\5
+\&{return} \\{cp};\2\6
+\&{if} ${}(\\{sl}\G\\{len}){}$\1\5
+\&{continue};\2\6
+\4${}\}{}$\2\6
+\&{if} ${}(\\{ll}\G\\{len}\W\\{strncasecmp}(\\{cp}\MG\\{longname},\39\\{str},%
+\39\\{len})\E\T{0}){}$\1\5
+\&{return} \\{cp};\2\6
+\4${}\}{}$\2\6
+\&{return} ${}\NULL;{}$\6
+\4${}\}{}$\2\par
+\fi
+
+\M{7}Find a token number, corresponding to the command \PB{\\{str}}.
+\Y\B\&{int} \\{find\_keyword}(\&{const} \&{char} ${}{*}\\{str}){}$\1\1\2\2\6
+${}\{{}$\1\6
+\&{struct} \&{command\_word} ${}{*}\\{cw}\K\\{find\_command\_word}(\\{str},\39%
+\\{strlen}(\\{str}));{}$\7
+\&{return} \\{cw}${}\?\\{cw}\MG\\{tok}:\T{0};{}$\6
+\4${}\}{}$\2\par
+\fi
+
+\M{8}Token structure.
+\Y\B\&{struct} \&{token} ${}\{{}$\1\6
+\&{int} \\{type};\C{ Token type }\6
+\&{int} \\{number};\C{ Numeric value if appropriate }\6
+\&{char} \\{string}[\.{MAX\_TOKENSIZE}];\C{ String value if appropriate }\2\6
+${}\}{}$;\par
+\fi
+
+\M{9}Input structure.
+\Y\B\&{struct} \&{term\_input} ${}\{{}$\1\6
+\&{char} ${}{*}({*}\\{reader}){}$(\&{struct} \&{term\_input} ${}{*}){}$;\C{
+Reader function }\6
+\&{void} ${}{*}\\{arg}{}$;\C{ Reader argument }\6
+\&{char} ${}{*}\\{input\_file}{}$;\C{ Input file name }\6
+\&{unsigned} \\{input\_line};\C{ Input line number }\6
+\&{int} \\{interactive};\C{ T if current session is interactive,
+                     F otherwise }\6
+\&{char} ${}{*}\\{buffer}{}$;\C{ Token buffer }\6
+\&{char} ${}{*}\\{curp}{}$;\C{ Current position in the buffer }\6
+\&{struct} \&{token} \&{token};\2\6
+${}\}{}$;\par
+\fi
+
+\M{10}Global variables.
+\Y\B\&{char} \\{prompt}[\,]${}\K\.{"MIX>\ "}{}$;\C{ Default terminal prompt }%
+\par
+\fi
+
+\N{2}{11}Readline support.
+Wherever {\mc GNU} {\tt readline} is available it is used to facilitate
+interaction with the terminal. The readline mode will be automatically
+disabled if \PB{\\{interactive}} is {\mc F}.
+
+The readline specific functions are protected by \PB{\.{WITH\_READLINE}}
+preprocessor
+variable.
+
+\Y\B\8\#\&{ifdef} \.{WITH\_READLINE}\par
+\fi
+
+\M{12}Readline command generator. Each invocation must return next possible
+expansion of \PB{\\{text}} or {\mc NULL} if no more expansions are available.
+\PB{\\{state}} is 0 if the function is called for the first time for given \PB{%
+\\{text}}.
+\Y\B\&{char} ${}{*}{}$\\{mixterm\_command\_generator}(\&{const} \&{char} ${}{*}%
+\\{text},\39{}$\&{int} \\{state})\1\1\2\2\6
+${}\{{}$\1\6
+\&{static} \&{int} \|i${},{}$ \\{len};\6
+\&{const} \&{char} ${}{*}\\{name};{}$\7
+\&{if} ${}(\R\\{state}){}$\5
+${}\{{}$\1\6
+${}\|i\K\T{0};{}$\6
+${}\\{len}\K\\{strlen}(\\{text});{}$\6
+\4${}\}{}$\2\6
+\&{while} ${}((\\{name}\K\\{cword}[\|i].\\{longname})){}$\5
+${}\{{}$\1\6
+\&{if} ${}(\R\\{cword}[\|i].\\{first}){}$\5
+${}\{{}$\1\6
+${}\|i\PP;{}$\6
+\&{continue};\6
+\4${}\}{}$\2\6
+\&{if} ${}(\\{cword}[\|i].\\{shortname}\W\\{strlen}(\\{cword}[\|i].%
+\\{shortname})>\\{strlen}(\\{name})){}$\1\5
+${}\\{name}\K\\{cword}[\|i].\\{shortname};{}$\2\6
+${}\|i\PP;{}$\6
+\&{if} ${}(\\{strncasecmp}(\\{name},\39\\{text},\39\\{len})\E\T{0}){}$\1\5
+\&{return} \\{strdup}(\\{name});\2\6
+\4${}\}{}$\2\6
+\&{return} ${}\NULL;{}$\6
+\4${}\}{}$\2\par
+\fi
+
+\M{13}Save positions in the readline buffer for completer functions that may
+need
+it.
+
+\Y\B\&{static} \&{int} \\{completion\_start};\6
+\&{static} \&{int} \\{completion\_end};\par
+\fi
+
+\M{14}Prepare a NULL terminated array of possible command completions.
+\Y\B\&{char} ${}{*}{*}{}$\\{mixterm\_command\_completion}(\&{char} ${}{*}%
+\\{cmd},\39{}$\&{int} \\{start}${},\39{}$\&{int} \\{end})\1\1 $\{$ \&{char}
+${}{*}{*}\\{ret}\K\NULL;{}$\7
+${}\\{rl\_filename\_completion\_desired}\K\T{0};{}$\6
+${}\\{rl\_attempted\_completion\_over}\K\T{1};{}$\6
+\&{if} ${}(\\{strchr}(\.{"?!"},\39\\{rl\_line\_buffer}[\T{0}])\W\\{rl\_line%
+\_buffer}[\T{1}]\W\R\\{isspace}(\\{rl\_line\_buffer}[\T{1}])){}$\5
+${}\{{}$\1\6
+\&{int} \\{len}${}\K\\{strlen}(\\{rl\_line\_buffer});{}$\7
+${}\\{rl\_extend\_line\_buffer}(\\{len}+\T{1});{}$\6
+${}\\{memmove}(\\{rl\_line\_buffer}+\T{2},\39\\{rl\_line\_buffer}+\T{1},\39%
+\\{len});{}$\6
+${}\\{rl\_line\_buffer}[\T{1}]\K\.{'\ '};{}$\6
+${}\\{rl\_end}\PP;{}$\6
+${}\\{rl\_point}\PP;{}$\6
+\4${}\}{}$\2\6
+\&{if} ${}(\\{start}\E\T{0}){}$\5
+${}\{{}$\1\6
+${}\\{ret}\K\\{rl\_completion\_matches}(\\{cmd},\39\\{mixterm\_command%
+\_generator});{}$\6
+\4${}\}{}$\2\6
+\&{else} $\{$ \&{char} ${}{*}\\{kw};{}$\6
+\&{int} \\{len}${}\K\T{0};{}$\6
+\&{struct} \&{command\_word} ${}{*}\\{cwp};{}$\7
+${}\\{rl\_completion\_append\_character}\K\.{'\ '};{}$\6
+${}\\{kw}\K\\{rl\_line\_buffer};{}$\6
+\&{if} ${}(\\{strchr}(\.{"?!"},\39{*}\\{kw})){}$\1\5
+${}\\{len}\K\T{1};{}$\2\6
+\&{else}\5
+${}\{{}$\1\6
+\&{for} ( ; ${}\\{kw}<\\{rl\_line\_buffer}+\\{start}\W\\{isspace}({*}%
+\\{kw});{}$ ${}\\{kw}\PP){}$\1\5
+;\2\6
+${}\\{getword}(\\{kw},\39\\{len});{}$\6
+\4${}\}{}$\2\6
+${}\\{cwp}\K\\{find\_command\_word}(\\{kw},\39\\{len});$ \&{if} ( $\\{cwp}\W%
+\\{cwp}$ $\MG$ $\Xcompl$ ) $\{$ $\\{completion\_start}\K\\{start};{}$\6
+${}\\{completion\_end}\K\\{end};$ $\\{ret}\K\\{rl\_completion\_matches}$ $(%
+\\{cmd},\39$ \\{cwp} $\MG$ $\Xcompl$ )  ; $\}$ $\}$ \&{return} \\{ret}; $\}{}$%
+\par
+\fi
+
+\M{15}Get next available character from the \PB{\\{stream}}.
+\Y\B\&{static} \&{int} \\{mixterm\_getc}(\&{FILE} ${}{*}\\{stream}){}$\1\1\2\2\6
+${}\{{}$\1\6
+\&{unsigned} \&{char} \|c;\7
+\&{while} (\T{1})\5
+${}\{{}$\1\6
+\&{if} ${}(\\{read}(\T{0},\39{\AND}\|c,\39\T{1})\E\T{1}){}$\1\5
+\&{return} \|c;\2\6
+\&{if} ${}(\\{errno}\E\.{EINTR}){}$\5
+${}\{{}$\1\6
+${}\\{rl\_kill\_full\_line}(\T{0},\39\T{0});{}$\6
+${}\\{rl\_newline}(\T{1},\39\.{'\\n'});{}$\6
+\\{rl\_on\_new\_line}(\,);\6
+\\{rl\_redisplay}(\,);\6
+\&{continue};\6
+\4${}\}{}$\2\6
+\&{else}\1\5
+\&{break};\2\6
+\4${}\}{}$\2\6
+\&{return} \.{EOF};\6
+\4${}\}{}$\2\par
+\fi
+
+\M{16}
+\Y\B\&{static} \&{char} ${}{*}\\{history\_file\_name}(\,){}$\1\1\2\2\6
+${}\{{}$\6
+\8\#\&{define} \.{SUF\_HISTORY} \5\.{"\_history"}\1\6
+\&{static} \&{char} ${}{*}\\{filename};{}$\7
+\&{if} ${}(\R\\{filename}){}$\5
+${}\{{}$\1\6
+\&{size\_t} \\{len};\6
+\&{char} ${}{*}\\{home}\K\\{getenv}(\.{"HOME"});{}$\7
+\&{if} ${}(\R\\{home}){}$\5
+${}\{{}$\1\6
+\&{struct} \\{passwd} ${}{*}\\{pw}\K\\{getpwuid}(\\{getuid}(\,));{}$\7
+\&{if} ${}(\R\\{pw}){}$\1\5
+\&{return} ${}\NULL;{}$\2\6
+${}\\{home}\K\\{pw}\MG\\{pw\_dir};{}$\6
+\4${}\}{}$\2\6
+${}\\{len}\K\\{strlen}(\\{home})+\T{2}+\\{strlen}(\\{rl\_readline\_name})+{}$%
+\&{sizeof} \.{SUF\_HISTORY};\6
+${}\\{filename}\K\\{malloc}(\\{len});{}$\6
+\&{if} (\\{filename})\5
+${}\{{}$\1\6
+${}\\{strcpy}(\\{filename},\39\\{home});{}$\6
+${}\\{strcat}(\\{filename},\39\.{"/."});{}$\6
+${}\\{strcat}(\\{filename},\39\\{rl\_readline\_name});{}$\6
+${}\\{strcat}(\\{filename},\39\.{SUF\_HISTORY});{}$\6
+\4${}\}{}$\2\6
+\4${}\}{}$\2\6
+\&{return} \\{filename};\6
+\4${}\}{}$\2\par
+\fi
+
+\M{17}Initialize internal readline variables.
+\Y\B\&{void} \\{mixterm\_readline\_init}(\,)\1\1\2\2\6
+${}\{{}$\1\6
+${}\\{rl\_readline\_name}\K\.{"mixsim"};{}$\6
+${}\\{rl\_attempted\_completion\_function}\K{}$(\&{CPPFunction} ${}{*}){}$ %
+\\{mixterm\_command\_completion};\6
+${}\\{rl\_getc\_function}\K\\{mixterm\_getc};{}$\6
+\\{read\_history}(\\{history\_file\_name}(\,));\6
+\4${}\}{}$\2\par
+\fi
+
+\M{18}Return \PB{\T{1}} if \PB{\|t} is present in \PB{\T{0}}-terminated array %
+\PB{\\{tab}}, and
+\PB{\T{0}} otherwise.
+
+\Y\B\&{int} \\{member}(\&{int} \|t${},\39{}$\&{int} ${}{*}\\{tab}){}$\1\1\2\2\6
+${}\{{}$\1\6
+\&{for} ( ; ${}{*}\\{tab};{}$ ${}\\{tab}\PP){}$\1\6
+\&{if} ${}({*}\\{tab}\E\|t){}$\1\5
+\&{return} \T{1};\2\2\6
+\&{return} \T{0};\6
+\4${}\}{}$\2\par
+\fi
+
+\M{19}
+\Y\B\&{static} \&{int} \\{match\_prefix}(\&{struct} \&{command\_word} ${}{*}%
+\\{cwp},\39{}$\&{const} \&{char} ${}{*}\\{word},\39{}$\&{int} \\{len})\1\1\2\2\6
+${}\{{}$\1\6
+\&{return} \\{len}${}\E\T{0}\V(\\{strlen}(\\{cwp}\MG\\{longname})\G\\{len}\W%
+\\{strncasecmp}(\\{cwp}\MG\\{longname},\39\\{word},\39\\{len})\E\T{0});{}$\6
+\4${}\}{}$\2\par
+\fi
+
+\M{20}Return 1, if the token number of \PB{\\{cwp}} is contained in \PB{%
+\\{tab}} and its
+\PB{\\{longname}} begins with prefix \PB{\\{len}}-byte prefix \PB{\\{word}}.
+
+\Y\B\&{static} \&{int} \\{tokmatch}(\&{struct} \&{command\_word} ${}{*}\\{cwp},%
+\39{}$\&{int} \\{tab}[\,]${},\39{}$\&{const} \&{char} ${}{*}\\{word},\39{}$%
+\&{int} \\{len})\1\1\2\2\6
+${}\{{}$\1\6
+\&{return} \\{member}${}(\\{cwp}\MG\\{tok},\39\\{tab})\W\\{match\_prefix}(%
+\\{cwp},\39\\{word},\39\\{len});{}$\6
+\4${}\}{}$\2\par
+\fi
+
+\M{21}General-purpose function for completing subcommands (command words,
+following principla commands, like "BREAK TEMP", for example).
+
+\PB{\\{text}} is a \PB{\\{len}}-bytes string to find completions for.\par
+\PB{\\{tab}} is a 0-terminated array of tokens that are expected in this
+position.\par
+\PB{${*}\\{pind}$} is the current index to \PB{\\{tab}}.
+
+The function returns the next possible completion, and update the index
+in \PB{\\{pind}}. If no more completions are left, it returns \.{NULL}.
+
+\Y\B\&{static} \&{char} ${}{*}{}$\\{extract\_next\_keyword}(\&{int} ${}{*}%
+\\{pind},\39{}$\&{int} ${}{*}\\{tab},\39{}$\&{const} \&{char} ${}{*}\\{text},%
+\39{}$\&{int} \\{len})\1\1\2\2\6
+${}\{{}$\1\6
+\&{char} ${}{*}\\{ret}\K\NULL;{}$\6
+\&{int} \|i${}\K{*}\\{pind};{}$\7
+\&{if} ${}(\R\\{tab}){}$\1\5
+\&{return} ${}\NULL;{}$\2\6
+\&{for} ( ; ${}\\{cword}[\|i].\\{longname};{}$ ${}\|i\PP){}$\1\6
+\&{if} ${}(\\{tokmatch}({\AND}\\{cword}[\|i],\39\\{tab},\39\\{text},\39%
+\\{len})){}$\5
+${}\{{}$\1\6
+${}\\{ret}\K\\{xstrdup}(\\{cword}[\|i\PP].\\{longname});{}$\6
+\&{break};\6
+\4${}\}{}$\2\2\6
+${}{*}\\{pind}\K\|i;{}$\6
+\&{return} \\{ret};\6
+\4${}\}{}$\2\par
+\fi
+
+\M{22}Completion after \.{ADDRESS} command.
+\Y\B\&{static} \&{char} ${}{*}{}$\\{compl\_address}(\&{const} \&{char} ${}{*}%
+\\{text},\39{}$\&{int} \\{state})\1\1\2\2\6
+${}\{{}$\1\6
+\&{static} \&{int} \\{addrtok}[\,]${}\K\{\.{T\_DELETE},\39\.{T\_PASSCOUNT},\39%
+\.{T\_DISABLE},\39\.{T\_ENABLE},\39\.{T\_IGNORE},\39\.{T\_LIST},\39\.{T\_LB},%
+\39\T{0}\};{}$\6
+\&{static} \&{int} \\{infotok}[\,]${}\K\{\.{T\_BREAK},\39\T{0}\};{}$\6
+\&{static} \&{int} ${}{*}\\{toktab};{}$\6
+\&{static} \&{int} \|i;\7
+\&{if} ${}(\\{state}\E\T{0}){}$\5
+${}\{{}$\1\6
+\&{char} ${}{*}\\{kw}\K\\{rl\_line\_buffer};{}$\6
+\&{int} \\{len}${}\K\T{0};{}$\7
+${}\\{toktab}\K\\{addrtok};{}$\6
+${}\\{getword}(\\{kw},\39\\{len});{}$\6
+${}\\{kw}\MRL{+{\K}}\\{len};{}$\6
+\\{skipws}(\\{kw});\6
+\&{if} ${}(\\{kw}-\\{rl\_line\_buffer}<\\{completion\_start}){}$\5
+${}\{{}$\1\6
+\&{char} ${}{*}\|p;{}$\6
+\&{struct} \&{command\_word} ${}{*}\\{cwp};{}$\7
+${}\\{len}\K\T{0};{}$\6
+${}\\{getword}(\\{kw},\39\\{len});{}$\6
+${}\\{cwp}\K\\{find\_command\_word}(\\{kw},\39\\{len});{}$\6
+${}\|p\K\\{kw}+\\{len};{}$\6
+\\{skipws}(\|p);\6
+\&{if} ${}(\|p-\\{rl\_line\_buffer}\E\\{completion\_start}\W\\{cwp}\W\\{cwp}\MG%
+\\{tok}\E\.{T\_LIST}){}$\1\5
+${}\\{toktab}\K\\{infotok};{}$\2\6
+\&{else}\1\5
+${}\\{toktab}\K\NULL;{}$\2\6
+\4${}\}{}$\2\6
+${}\|i\K\T{0};{}$\6
+\4${}\}{}$\2\6
+\&{return} \\{extract\_next\_keyword}${}({\AND}\|i,\39\\{toktab},\39\\{text},%
+\39\\{strlen}(\\{text}));{}$\6
+\4${}\}{}$\2\par
+\fi
+
+\M{23}Completion after \.{BREAK}.
+\Y\B\&{static} \&{char} ${}{*}{}$\\{compl\_break}(\&{const} \&{char} ${}{*}%
+\\{text},\39{}$\&{int} \\{state})\1\1\2\2\6
+${}\{{}$\1\6
+\&{static} \&{int} \\{toktab}[\,]${}\K\{\.{T\_TEMP},\39\T{0}\};{}$\6
+\&{static} \&{int} \|i;\7
+\&{if} ${}(\\{state}\E\T{0}){}$\1\5
+${}\|i\K\T{0};{}$\2\6
+\&{return} \\{extract\_next\_keyword}${}({\AND}\|i,\39\\{toktab},\39\\{text},%
+\39\\{strlen}(\\{text}));{}$\6
+\4${}\}{}$\2\par
+\fi
+
+\M{24}Completion after \.{DUMP}.
+\Y\B\&{static} \&{char} ${}{*}{}$\\{compl\_dump}(\&{const} \&{char} ${}{*}%
+\\{text},\39{}$\&{int} \\{state})\1\1\2\2\6
+${}\{{}$\1\6
+\&{static} \&{int} \\{toktab}[\,]${}\K\{\.{T\_REGISTERS},\39\.{T\_MEMORY},\39%
+\T{0}\};{}$\6
+\&{static} \&{int} \|i;\7
+\&{if} ${}(\\{state}\E\T{0}){}$\1\5
+${}\|i\K\T{0};{}$\2\6
+\&{return} \\{extract\_next\_keyword}${}({\AND}\|i,\39\\{toktab},\39\\{text},%
+\39\\{strlen}(\\{text}));{}$\6
+\4${}\}{}$\2\par
+\fi
+
+\M{25}Completion after \.{INFO} (alias \.{LIST}).
+\Y\B\&{static} \&{char} ${}{*}{}$\\{compl\_list}(\&{const} \&{char} ${}{*}%
+\\{text},\39{}$\&{int} \\{state})\1\1\2\2\6
+${}\{{}$\1\6
+\&{static} \&{int} \\{toktab}[\,]${}\K\{\.{T\_IO},\39\.{T\_BREAK},\39\T{0}%
+\};{}$\6
+\&{static} \&{int} \|i;\7
+\&{if} ${}(\\{state}\E\T{0}){}$\1\5
+${}\|i\K\T{0};{}$\2\6
+\&{return} \\{extract\_next\_keyword}${}({\AND}\|i,\39\\{toktab},\39\\{text},%
+\39\\{strlen}(\\{text}));{}$\6
+\4${}\}{}$\2\par
+\fi
+
+\M{26}Completion after \.{HELP}.
+\Y\B\&{static} \&{char} ${}{*}{}$\\{compl\_help}(\&{const} \&{char} ${}{*}%
+\\{text},\39{}$\&{int} \\{state})\1\1\2\2\6
+${}\{{}$\1\6
+\&{static} \&{int} \|i;\6
+\&{struct} \&{command\_word} ${}{*}\\{cwp};{}$\6
+\&{int} \\{len}${}\K\\{strlen}(\\{text});{}$\7
+\&{if} ${}(\\{state}\E\T{0}){}$\1\5
+${}\|i\K\T{0};{}$\2\6
+\&{while} ${}((\\{cwp}\K{\AND}\\{cword}[\|i\PP])\MG\\{longname}){}$\1\6
+\&{if} ${}(\\{cwp}\MG\\{first}\W\\{match\_prefix}(\\{cwp},\39\\{text},\39%
+\\{len})){}$\1\5
+\&{return} \\{xstrdup}${}(\\{cwp}\MG\\{longname});{}$\2\2\6
+\&{return} ${}\NULL;{}$\6
+\4${}\}{}$\2\par
+\fi
+
+\M{27}Completion after \.{ASGN}
+
+\Y\B\&{static} \&{char} ${}{*}{}$\\{compl\_asgn}(\&{const} \&{char} ${}{*}%
+\\{text},\39{}$\&{int} \\{state})\1\1\2\2\6
+${}\{{}$\1\6
+\&{if} ${}(\\{state}\E\T{0}){}$\5
+${}\{{}$\1\6
+\&{char} ${}{*}\\{kw}\K\\{rl\_line\_buffer};{}$\6
+\&{int} \\{len}${}\K\T{0}{}$;\C{ Skip ASGN keyword }\7
+${}\\{getword}(\\{kw},\39\\{len});{}$\6
+${}\\{kw}\MRL{+{\K}}\\{len};{}$\6
+\\{skipws}(\\{kw});\6
+\&{if} ${}(\\{kw}-\\{rl\_line\_buffer}<\\{completion\_start}){}$\5
+${}\{{}$\C{ Skip device number }\1\6
+${}\\{len}\K\T{0};{}$\6
+${}\\{getword}(\\{kw},\39\\{len});{}$\6
+${}\\{kw}\MRL{+{\K}}\\{len};{}$\6
+\\{skipws}(\\{kw});\6
+\&{if} ${}(\\{kw}-\\{rl\_line\_buffer}\Z\\{completion\_start}){}$\5
+${}\{{}$\C{ Require filename completion }\1\6
+${}\\{rl\_filename\_completion\_desired}\K\T{1};{}$\6
+${}\\{rl\_attempted\_completion\_over}\K\T{0};{}$\6
+\4${}\}{}$\2\6
+\4${}\}{}$\2\6
+\4${}\}{}$\2\6
+\&{return} ${}\NULL;{}$\6
+\4${}\}{}$\2\par
+\fi
+
+\M{28}Return a copy of \PB{\\{name}}. If \PB{\\{isdir}} is set, append a slash
+to the result.
+\Y\B\&{char} ${}{*}{}$\\{dupname}(\&{char} ${}{*}\\{name},\39{}$\&{int} %
+\\{isdir})\1\1\2\2\6
+${}\{{}$\1\6
+\&{size\_t} \\{len}${}\K\\{strlen}(\\{name})+(\\{isdir}\?\T{1}:\T{0});{}$\6
+\&{char} ${}{*}\|p\K\\{xmalloc}(\\{len}+\T{1});{}$\7
+${}\\{strcpy}(\|p,\39\\{name});{}$\6
+\&{if} (\\{isdir})\1\5
+${}\\{strcat}(\|p,\39\.{"/"});{}$\2\6
+\&{return} \|p;\6
+\4${}\}{}$\2\par
+\fi
+
+\M{29}Find in directory \PB{\\{dirname}} any executable files (or direcories,
+if
+\PB{\\{abs}} is not 0) that begin with \PB{\\{pfx}}, and store their names in
+\PB{${*}\\{ptab}$}. \PB{${*}\\{psize}$} gives the size of \PB{${*}\\{ptab}$} in
+entries, \PB{${*}\\{pcount}$} is
+the count of actually used elements.
+
+\Y\B\&{void} \\{complete\_exec\_expand}(\&{char} ${}{*}{*}{*}\\{ptab},\39{}$%
+\&{size\_t} ${}{*}\\{pcount},\39{}$\&{size\_t} ${}{*}\\{psize},\39{}$\&{const} %
+\&{char} ${}{*}\\{dirname},\39{}$\&{const} \&{char} ${}{*}\\{pfx},\39{}$\&{int}
+\\{abs})\1\1\2\2\6
+${}\{{}$\1\6
+\&{char} ${}{*}{*}\\{tab}\K{*}\\{ptab};{}$\6
+\&{size\_t} \\{count}${}\K{*}\\{pcount};{}$\6
+\&{size\_t} \\{size}${}\K{*}\\{psize};{}$\6
+\&{size\_t} \\{pfxlen}${}\K\\{strlen}(\\{pfx});{}$\7
+${}\.{DIR}*\\{dir};{}$\6
+${}\\{dir}\K\\{opendir}(\\{dirname});{}$\6
+\&{if} (\\{dir})\5
+${}\{{}$\1\6
+\&{char} ${}{*}\\{namebuf}\K\NULL;{}$\6
+\&{size\_t} \\{namebuflen}${}\K\T{0};{}$\6
+\&{size\_t} \\{dirlen}${}\K\\{strlen}(\\{dirname});{}$\6
+\&{struct} \\{dirent} ${}{*}\\{ent};{}$\7
+\&{if} ${}(\\{dirname}[\\{dirlen}-\T{1}]\E\.{'/'}){}$\1\5
+${}\\{dirlen}\MM;{}$\2\6
+\&{while} ${}(\\{ent}\K\\{readdir}(\\{dir})){}$\5
+${}\{{}$\1\6
+\&{size\_t} \\{nlen};\7
+\&{if} ${}(\\{strcmp}(\\{ent}\MG\\{d\_name},\39\.{"."})\E\T{0}\V\\{strcmp}(%
+\\{ent}\MG\\{d\_name},\39\.{".."})\E\T{0}){}$\1\5
+\&{continue};\2\6
+${}\\{nlen}\K\\{strlen}(\\{ent}\MG\\{d\_name});{}$\6
+\&{if} ${}(\\{pfxlen}>\T{0}\W(\\{nlen}<\\{pfxlen}\V\\{memcmp}(\\{ent}\MG\\{d%
+\_name},\39\\{pfx},\39\\{pfxlen}))){}$\1\5
+\&{continue};\2\6
+${}\\{nlen}\MRL{+{\K}}\\{dirlen}+\T{1}+\T{1};{}$\6
+\&{if} ${}(\\{namebuflen}<\\{nlen}){}$\5
+${}\{{}$\1\6
+${}\\{namebuf}\K\\{xrealloc}(\\{namebuf},\39\\{nlen});{}$\6
+\&{if} ${}(\\{namebuflen}\E\T{0}){}$\5
+${}\{{}$\1\6
+${}\\{strcpy}(\\{namebuf},\39\\{dirname});{}$\6
+${}\\{namebuf}[\\{dirlen}]\K\.{'/'};{}$\6
+\4${}\}{}$\2\6
+${}\\{namebuflen}\K\\{nlen};{}$\6
+\4${}\}{}$\2\6
+${}\\{strcpy}(\\{namebuf}+\\{dirlen}+\T{1},\39\\{ent}\MG\\{d\_name});{}$\6
+\&{if} ${}(\\{access}(\\{namebuf},\39\.{X\_OK})\E\T{0}){}$\5
+${}\{{}$\1\6
+\&{struct} \\{stat} \\{sb};\6
+\&{int} \\{isdir};\7
+\&{if} ${}(\\{size}\E\\{count}){}$\5
+${}\{{}$\1\6
+\&{if} ${}(\\{size}\E\T{0}){}$\5
+${}\{{}$\1\6
+${}\\{size}\K\T{16};{}$\6
+${}\\{tab}\K\\{xcalloc}(\\{size},\39{}$\&{sizeof} (\\{tab}[\T{0}]));\6
+\4${}\}{}$\2\6
+\&{else}\1\5
+${}\\{tab}\K\\{x2nrealloc}(\\{tab},\39{\AND}\\{size},\39{}$\&{sizeof} (\\{tab}[%
+\T{0}]));\2\6
+\4${}\}{}$\2\6
+${}\\{isdir}\K\\{stat}(\\{namebuf},\39{\AND}\\{sb})\E\T{0}\W\.{S\_ISDIR}(%
+\\{sb}.\\{st\_mode});{}$\6
+\&{if} (\\{abs})\5
+${}\{{}$\1\6
+${}\\{tab}[\\{count}\PP]\K\\{dupname}(\\{namebuf},\39\\{isdir});{}$\6
+\&{if} (\\{isdir})\1\5
+${}\\{rl\_completion\_append\_character}\K\T{0};{}$\2\6
+\4${}\}{}$\2\6
+\&{else} \&{if} ${}(\R\\{isdir}){}$\1\5
+${}\\{tab}[\\{count}\PP]\K\\{dupname}(\\{ent}\MG\\{d\_name},\39\T{0});{}$\2\6
+\4${}\}{}$\2\6
+\4${}\}{}$\2\6
+\\{closedir}(\\{dir});\6
+\\{free}(\\{namebuf});\6
+\4${}\}{}$\2\6
+${}{*}\\{ptab}\K\\{tab};{}$\6
+${}{*}\\{pcount}\K\\{count};{}$\6
+${}{*}\\{psize}\K\\{size};{}$\6
+\4${}\}{}$\2\par
+\fi
+
+\M{30}Return possible completions of \PB{\\{text}}, which is supposed to be an
+executable
+file name. Unless \PB{\\{text}} begins with a directory separator, search for
+matching files in \PB{\.{PATH}}.
+
+\Y\B\&{char} ${}{*}{*}{}$\\{complete\_exec\_path}(\&{const} \&{char} ${}{*}%
+\\{text}){}$\1\1\2\2\6
+${}\{{}$\1\6
+\&{char} ${}{*}{*}\\{tab}\K\NULL;{}$\6
+\&{size\_t} \\{count}${}\K\T{0};{}$\6
+\&{size\_t} \\{size}${}\K\T{0};{}$\6
+\&{char} ${}{*}\|p;{}$\7
+\&{if} ${}(\\{text}[\T{0}]\E\.{'/'}){}$\5
+${}\{{}$\1\6
+\&{char} ${}{*}\|p\K\\{strrchr}(\\{text},\39\.{'/'});{}$\6
+\&{size\_t} \\{len}${}\K\|p-\\{text}+\T{1};{}$\6
+\&{char} ${}{*}\\{dir};{}$\7
+${}\\{dir}\K\\{xmalloc}(\\{len}+\T{1});{}$\6
+${}\\{memcpy}(\\{dir},\39\\{text},\39\\{len});{}$\6
+${}\\{dir}[\\{len}]\K\T{0};{}$\6
+${}\\{complete\_exec\_expand}({\AND}\\{tab},\39{\AND}\\{count},\39{\AND}%
+\\{size},\39\\{dir},\39\|p+\T{1},\39\T{1});{}$\6
+\\{free}(\\{dir});\6
+\4${}\}{}$\2\6
+\&{else}\5
+${}\{{}$\1\6
+\&{char} ${}{*}\\{path}\K\\{xstrdup}(\\{getenv}(\.{"PATH"}));{}$\7
+\&{for} ${}(\|p\K\\{strtok}(\\{path},\39\.{":"});{}$ \|p; ${}\|p\K\\{strtok}(%
+\NULL,\39\.{":"})){}$\1\5
+${}\\{complete\_exec\_expand}({\AND}\\{tab},\39{\AND}\\{count},\39{\AND}%
+\\{size},\39\|p,\39\\{text},\39\T{0});{}$\2\6
+\\{free}(\\{path});\6
+\4${}\}{}$\2\6
+\&{if} (\\{tab})\5
+${}\{{}$\1\6
+\&{if} ${}(\\{size}\E\\{count}){}$\1\5
+${}\\{tab}\K\\{x2nrealloc}({\AND}\\{tab},\39{\AND}\\{size},\39{}$\&{sizeof} (%
+\\{tab}[\T{0}]));\2\6
+${}\\{tab}[\\{count}]\K\NULL;{}$\6
+\4${}\}{}$\2\6
+\&{return} \\{tab};\6
+\4${}\}{}$\2\par
+\fi
+
+\M{31}Completion after \.{SHELL}
+
+\Y\B\&{static} \&{char} ${}{*}{}$\\{compl\_shell}(\&{const} \&{char} ${}{*}%
+\\{text},\39{}$\&{int} \\{state})\1\1\2\2\6
+${}\{{}$\1\6
+\&{static} \&{char} ${}{*}{*}\\{comptab};{}$\7
+\&{if} ${}(\\{state}\E\T{0}){}$\5
+${}\{{}$\1\6
+\&{char} ${}{*}\\{cmd};{}$\6
+\&{char} ${}{*}\\{kw}\K\\{rl\_line\_buffer};{}$\6
+\&{int} \\{len}${}\K\T{0}{}$;\C{ Skip SHELL keyword }\7
+\&{if} ${}(\\{kw}[\\{len}]\E\.{'!'}){}$\1\5
+${}\\{len}\PP;{}$\2\6
+\&{else}\1\5
+${}\\{getword}(\\{kw},\39\\{len});{}$\2\6
+${}\\{cmd}\K\\{kw};{}$\6
+${}\\{kw}\MRL{+{\K}}\\{len};{}$\6
+\\{skipws}(\\{kw});\C{ Get command name }\6
+${}\\{len}\K\T{0};{}$\6
+${}\\{getword}(\\{kw},\39\\{len});{}$\6
+\&{if} ${}(\\{isspace}(\\{kw}[\\{len}])\W\\{kw}+\\{len}-\\{rl\_line\_buffer}<%
+\\{completion\_start}){}$\5
+${}\{{}$\C{ Command name already present: require filename completion }\1\6
+${}\\{rl\_filename\_completion\_desired}\K\T{1};{}$\6
+${}\\{rl\_attempted\_completion\_over}\K\T{0};{}$\6
+\4${}\}{}$\2\6
+\&{else}\1\5
+${}\\{comptab}\K\\{complete\_exec\_path}(\\{kw});{}$\2\6
+\4${}\}{}$\2\6
+\&{if} (\\{comptab})\5
+${}\{{}$\1\6
+\&{if} ${}(\\{comptab}[\\{state}]\E\NULL){}$\5
+${}\{{}$\1\6
+\\{free}(\\{comptab});\6
+${}\\{comptab}\K\NULL;{}$\6
+\4${}\}{}$\2\6
+\&{else}\1\5
+\&{return} \\{comptab}[\\{state}];\2\6
+\4${}\}{}$\2\6
+\&{return} ${}\NULL;{}$\6
+\4${}\}{}$\2\7
+\&{static} \&{char} ${}{*}{}$\\{compl\_source}(\&{const} \&{char} ${}{*}%
+\\{text},\39{}$\&{int} \\{state})\1\1\2\2\6
+${}\{{}$\C{ Command name already present: require filename completion }\1\6
+${}\\{rl\_filename\_completion\_desired}\K\T{1};{}$\6
+${}\\{rl\_attempted\_completion\_over}\K\T{0};{}$\6
+\&{return} ${}\NULL;{}$\6
+\4${}\}{}$\2\par
+\fi
+
+\M{32}End of readline-specific section
+\Y\B\8\#\&{endif}\par
+\fi
+
+\M{33}Read next lineful of characters. Returns pointer to allocated memory
+location, which should be freed when no longer needed.
+\Y\B\&{char} ${}{*}{}$\\{mixterm\_readline\_internal}(\&{FILE} ${}{*}\\{fp}){}$%
+\1\1\2\2\6
+${}\{{}$\1\6
+\&{char} ${}{*}\\{line};{}$\6
+\&{char} ${}{*}\|p;{}$\6
+\&{size\_t} \\{alloclen}${},{}$ \\{linelen};\7
+${}\|p\K\\{line}\K\\{xcalloc}(\T{1},\39\T{255});{}$\6
+${}\\{alloclen}\K\T{255};{}$\6
+${}\\{linelen}\K\T{0};{}$\6
+\&{for} ( ;  ; \,)\5
+${}\{{}$\1\6
+\&{size\_t} \|n;\7
+${}\|p\K\\{fgets}(\|p,\39\\{alloclen}-\\{linelen},\39\\{fp});{}$\6
+\&{if} (\|p)\1\5
+${}\|n\K\\{strlen}(\|p);{}$\2\6
+\&{else} \&{if} ${}(\\{errno}\E\.{EINTR}){}$\5
+${}\{{}$\1\6
+${}\|p\K\\{line};{}$\6
+${}\\{linelen}\K\T{0};{}$\6
+\4${}\}{}$\2\6
+\&{else}\5
+${}\{{}$\1\6
+\\{free}(\\{line});\6
+\&{return} ${}\NULL;{}$\6
+\4${}\}{}$\2\6
+${}\\{linelen}\MRL{+{\K}}\|n{}$;\C{ Error.  }\6
+\&{if} ${}(\\{linelen}\E\T{0}){}$\5
+${}\{{}$\1\6
+\\{free}(\\{line});\6
+\&{return} ${}\NULL;{}$\6
+\4${}\}{}$\C{ Ok.  }\2\6
+\&{if} ${}(\\{line}[\\{linelen}-\T{1}]\E\.{'\\n'}){}$\5
+${}\{{}$\1\6
+${}\\{line}[\\{linelen}-\T{1}]\K\.{'\\0'};{}$\6
+\&{return} \\{line};\6
+\4${}\}{}$\2\6
+\&{else}\5
+${}\{{}$\1\6
+${}\\{line}\K\\{x2realloc}(\\{line},\39{\AND}\\{alloclen});{}$\6
+${}\|p\K\\{line}+\\{linelen};{}$\6
+\4${}\}{}$\2\6
+\4${}\}{}$\2\6
+\4${}\}{}$\2\par
+\fi
+
+\M{34}When {\tt readline} is not available, provide a simplified version.
+\Y\B\8\#\&{ifndef} \.{WITH\_READLINE}\6
+\&{char} ${}{*}{}$\\{readline}(\&{char} ${}{*}\\{prompt}){}$\1\1\2\2\6
+${}\{{}$\1\6
+\&{if} (\\{prompt})\5
+${}\{{}$\1\6
+${}\\{printf}(\.{"\%s"},\39\\{prompt});{}$\6
+\\{fflush}(\\{stdout});\6
+\4${}\}{}$\2\6
+\&{return} \\{mixterm\_readline\_internal}(\\{stdin});\6
+\4${}\}{}$\2\6
+\8\#\&{define} \\{mixterm\_readline\_init} \5(\,)\6
+\8\#\&{endif}\par
+\fi
+
+\N{2}{35}Reader functions.
+
+\fi
+
+\M{36}Input from \PB{\\{stdin}}.
+\Y\B\&{static} \&{char} ${}{*}{}$\\{readline\_reader}(\&{struct} \&{term%
+\_input} ${}{*}\\{input}){}$\1\1\2\2\6
+${}\{{}$\1\6
+\&{if} ${}(\\{input}\MG\\{interactive}){}$\1\5
+\&{return} \\{readline}(\\{prompt});\2\6
+\&{return} \\{mixterm\_readline\_internal}(\\{stdin});\6
+\4${}\}{}$\2\par
+\fi
+
+\M{37}Input from a file. \PB{$\\{input}\MG\\{arg}$} contains a \PB{\&{FILE}}
+pointer.
+\Y\B\&{static} \&{char} ${}{*}{}$\\{file\_reader}(\&{struct} \&{term\_input}
+${}{*}\\{input}){}$\1\1\2\2\6
+${}\{{}$\1\6
+\&{return} \\{mixterm\_readline\_internal}${}(\\{input}\MG\\{arg});{}$\6
+\4${}\}{}$\2\par
+\fi
+
+\N{2}{38}Command line parser.
+
+\fi
+
+\M{39}Copy current token into \PB{\&{token} $.$ \\{string}}.
+\Y\B\&{void} \\{copy\_token}(\&{struct} \&{term\_input} ${}{*}\\{inp}){}$\1\1 $%
+\{$ \&{char} ${}{*}\|p;$ $\|p\K\\{inp}$ $\MG$ $\&{token}.\\{string};{}$\7
+\&{if} ${}({*}\\{inp}\MG\\{curp}\E\.{'?'}\V{*}\\{inp}\MG\\{curp}\E\.{'!'}){}$\1%
+\5
+${}{*}\|p\PP\K{*}\\{inp}\MG\\{curp}\PP;{}$\2\6
+\&{else}\5
+${}\{{}$\1\6
+\&{while} ${}({*}\\{inp}\MG\\{curp}\W\R\\{isspace}({*}\\{inp}\MG\\{curp})){}$\1%
+\5
+${}{*}\|p\PP\K{*}\\{inp}\MG\\{curp}\PP;{}$\2\6
+\4${}\}{}$\2\6
+${}{*}\|p\K\T{0};$ $\}{}$\par
+\fi
+
+\M{40}Advance \PB{\\{curp}} to the next token. Copy the current token into
+\PB{\&{token} $.$ \\{string}} and store its type in \PB{\&{token} $.$ %
+\\{type}}. Return token
+type.
+\Y\B\&{int} \\{nextkn}(\&{struct} \&{term\_input} ${}{*}\\{inp}){}$\1\1 $\{$ %
+\&{if} ${}(\R\\{inp}\MG\\{curp})$ $\{$ \&{char} ${}{*}\|p;{}$\7
+${}\|p\K\\{inp}\MG\\{curp}\K\\{inp}\MG\\{reader}(\\{inp});$ \&{if} ${}(\\{inp}%
+\MG\\{curp})$ $\{$ \6
+\&{while} ${}({*}\\{inp}\MG\\{curp}\W({*}\\{inp}\MG\\{curp}\E\.{'\ '}\V{*}%
+\\{inp}\MG\\{curp}\E\.{'\\t'})){}$\1\5
+${}\\{inp}\MG\\{curp}\PP;{}$\2\6
+\&{if} ${}({*}\\{inp}\MG\\{curp}\E\T{0})$ $\{{}$\C{ if an empty line is given,
+reuse the 			  latest command }\6
+\&{if} ${}(\R\\{inp}\MG\\{buffer})$ \&{return} \\{inp} $\MG$ $\&{token}.%
+\\{type}\K\.{T\_EOL};{}$\7
+${}\\{inp}\MG\\{curp}\K\\{inp}\MG\\{buffer};$ $\}$ \6
+\&{else}\5
+${}\{{}$\1\6
+${}\\{free}(\\{inp}\MG\\{buffer});{}$\6
+${}\\{inp}\MG\\{buffer}\K\|p;{}$\6
+\8\#\&{ifdef} \.{WITH\_READLINE}\6
+\&{if} ${}(\\{inp}\MG\\{interactive}){}$\1\5
+${}\\{add\_history}(\\{inp}\MG\\{curp});{}$\2\6
+\8\#\&{endif}\6
+\4${}\}{}$\2\6
+$\}$ $\}$ \6
+\&{if} ${}(\R\\{inp}\MG\\{curp}){}$\1\5
+\&{return} \T{0};\2\6
+\&{while} ${}({*}\\{inp}\MG\\{curp}\W({*}\\{inp}\MG\\{curp}\E\.{'\ '}\V{*}%
+\\{inp}\MG\\{curp}\E\.{'\\t'})){}$\1\5
+${}\\{inp}\MG\\{curp}\PP;{}$\2\6
+\&{if} ${}(\R{*}\\{inp}\MG\\{curp}\V{*}\\{inp}\MG\\{curp}\E\.{'\#'})$ $\{$ $%
+\\{inp}\MG\\{curp}\K\NULL;$ \&{return} \\{inp} $\MG$ $\&{token}.\\{type}\K\.{T%
+\_EOL};$ $\}$ \&{if} ${}(\\{isalpha}({*}\\{inp}\MG\\{curp})\V\\{strchr}(%
+\.{"/.?!"},\39{*}\\{inp}\MG\\{curp}))$ $\{$ \&{int} \\{len};\6
+\&{struct} \&{command\_word} ${}{*}\\{cp};{}$\6
+\&{struct} \&{command\_word} ${}{*}\\{found}\K\NULL;{}$\6
+\&{int} \\{ambiguous}${}\K\T{0};{}$\7
+\\{copy\_token}(\\{inp}); $\\{len}\K\\{strlen}$ ( \\{inp} $\MG$ $\&{token}.%
+\\{string}$ )  ; \&{for} ${}(\\{cp}\K\\{cword};{}$ ${}\\{cp}\MG\\{longname};{}$
+${}\\{cp}\PP)$ $\{$ \&{int} \\{ll}${}\K\\{strlen}(\\{cp}\MG\\{longname});$ %
+\&{if} ${}(\\{cp}\MG\\{shortname})$ $\{$ \&{int} \\{sl}${}\K\\{strlen}(\\{cp}%
+\MG\\{shortname});$ \&{if} ( $\\{sl}\E\\{len}\W\\{strcasecmp}$ $(\\{cp}\MG%
+\\{shortname},\39$ \\{inp} $\MG$ $\&{token}.\\{string}$ ) $\E$ \T{0} ) %
+\&{return} \\{inp} $\MG$ $\&{token}.\\{type}\K\\{cp}\MG\\{tok};{}$\7
+\&{if} ${}(\\{sl}\G\\{len}){}$\1\5
+\&{continue};\2\6
+$\}$ \&{if} ( $\\{ll}\G\\{len}\W\\{strncasecmp}$ $(\\{cp}\MG\\{longname},\39$ %
+\\{inp} $\MG$ $\&{token}.\\{string},{}$ \\{len} ) $\E$ \T{0} ) \6
+${}\{{}$\1\6
+\&{if} ${}(\R\\{found}){}$\5
+${}\{{}$\1\6
+${}\\{found}\K\\{cp};{}$\6
+\&{if} ${}(\\{ll}\E\\{len}){}$\1\5
+\&{break};\2\6
+\4${}\}{}$\2\6
+\&{else}\5
+${}\{{}$\1\6
+\&{if} ${}(\R\\{ambiguous}){}$\5
+${}\{{}$\1\6
+${}\\{printf}(\.{"AMBIGUOUS\ COMMAND\ V}\)\.{ERB:\ \%s"},\39\\{found}\MG%
+\\{longname});{}$\6
+${}\\{ambiguous}\K\T{1};{}$\6
+\4${}\}{}$\2\6
+${}\\{printf}(\.{",\ \%s"},\39\\{cp}\MG\\{longname});{}$\6
+\4${}\}{}$\2\6
+\4${}\}{}$\2\6
+$\}$ \&{if} (\\{ambiguous}) $\{$ \\{putchar}(\.{'\\n'});\6
+${}\\{inp}\MG\\{curp}\K\NULL;$ \&{return} \\{inp} $\MG$ $\&{token}.\\{type}\K%
+\.{T\_EOL};$ $\}$ \&{return} \\{inp} $\MG$ $\&{token}.\\{type}\K(\\{found}\?%
+\\{found}\MG\\{tok}:\.{T\_STRING});$ $\}$ \&{if} ${}(\\{isdigit}({*}\\{inp}\MG%
+\\{curp}))$ $\{$ \\{copy\_token}(\\{inp}); \\{inp} $\MG$ \&{token} $.$ $%
+\\{number}\K\\{strtol}$ ( \\{inp} $\MG$ $\&{token}.\\{string},{}$ ${}\NULL,{}$ %
+\T{0} )  ; \&{return} \\{inp} $\MG$ $\&{token}.\\{type}\K\.{T\_NUMBER};$ $\}$ %
+\&{return} \\{inp} $\MG$ $\&{token}.\\{type}\K{*}\\{inp}\MG\\{curp}\PP;$ $\}{}$%
+\par
+\fi
+
+\M{41}Get \.{MIX} memory address from \PB{\&{token} $.$ \\{number}}. Bail out
+if the address
+is not valid.
+
+\Y\B\&{int} \\{getaddr}(\&{struct} \&{term\_input} ${}{*}\\{inp}){}$\1\1 $\{$ %
+\&{int} \\{addr} $\K$ \\{inp} $\MG$ $\&{token}.\\{number};{}$\7
+\&{if} ${}(\\{addr}<\T{0}\V\\{addr}\G\.{MEMSIZE}){}$\5
+${}\{{}$\1\6
+\\{printf}(\.{"LOCATION\ OUT\ OF\ ADD}\)\.{RESS\ SPACE\\n"});\6
+\&{return} ${}{-}\T{1};{}$\6
+\4${}\}{}$\2\6
+\&{return} \\{addr}; $\}{}$\par
+\fi
+
+\M{42}Return 1, if the string \PB{\|p} is an affirmative reply, 0, if it is
+a negative reply, and -1 if neither of these apply.
+
+\Y\B\&{static} \&{int} \\{true\_answer\_p}(\&{const} \&{char} ${}{*}\|p){}$\1\1%
+\2\2\6
+${}\{{}$\1\6
+\&{if} ${}(\R\|p){}$\1\5
+\&{return} ${}{-}\T{1};{}$\2\6
+\&{while} ${}({*}\|p\W\\{isspace}({*}\|p)){}$\1\5
+${}\|p\PP;{}$\2\6
+\&{switch} ${}({*}\|p){}$\5
+${}\{{}$\1\6
+\4\&{case} \.{'y'}:\5
+\&{case} \.{'Y'}:\5
+\&{return} \T{1};\6
+\4\&{case} \.{'n'}:\5
+\&{case} \.{'N'}:\5
+\&{return} \T{0};\6
+\4${}\}{}$\2\6
+\&{return} ${}{-}\T{1};{}$\6
+\4${}\}{}$\2\par
+\fi
+
+\M{43}Format \PB{\\{ap}} according to \PB{\\{fmt}} and print it on screen. Read
+input
+from the user. Return 1 if the user confirmed, 0 otherwise.
+
+\Y\B\&{static} \&{int} \\{vgetyn}(\&{const} \&{char} ${}{*}\\{fmt},\39{}$\&{va%
+\_list} \\{ap})\1\1\2\2\6
+${}\{{}$\1\6
+\&{char} \\{repl}[\T{64}];\7
+\&{while} (\T{1})\5
+${}\{{}$\1\6
+\&{char} ${}{*}\|p;{}$\6
+\&{int} \\{len}${},{}$ \\{rc};\7
+${}\\{vprintf}(\\{fmt},\39\\{ap});{}$\6
+\\{printf}(\.{"?\ "});\6
+${}\|p\K\\{fgets}(\\{repl},\39{}$\&{sizeof} \\{repl}${},\39\\{stdin});{}$\6
+\&{if} ${}(\R\|p){}$\1\5
+\&{return} \T{0};\2\6
+${}\\{len}\K\\{strlen}(\|p);{}$\6
+\&{if} ${}(\\{len}>\T{0}\W\|p[\\{len}-\T{1}]\E\.{'\\n'}){}$\1\5
+${}\|p[\\{len}\MM]\K\T{0};{}$\2\6
+${}\\{rc}\K\\{true\_answer\_p}(\|p);{}$\6
+\&{if} ${}(\\{rc}\G\T{0}){}$\1\5
+\&{return} \\{rc};\2\6
+\\{printf}(\.{"PLEASE\ ANSWER\ YES\ O}\)\.{R\ NO:\ "});\6
+\4${}\}{}$\2\6
+\&{return} \T{0};\C{ to pacify gcc }\6
+\4${}\}{}$\2\par
+\fi
+
+\M{44}Format arguments on screen according to \PB{\\{fmt}}. Read input
+from the user. Return 1 if the user confirmed, 0 otherwise.
+
+\Y\B\&{int} \\{getyn}(\&{const} \&{char} ${}{*}\\{fmt},\39\,\ldots\,){}$\1\1\2%
+\2\6
+${}\{{}$\1\6
+\&{va\_list} \\{ap};\6
+\&{int} \\{rc};\7
+${}\\{va\_start}(\\{ap},\39\\{fmt});{}$\6
+${}\\{rc}\K\\{vgetyn}(\\{fmt},\39\\{ap});{}$\6
+\\{va\_end}(\\{ap});\6
+\&{return} \\{rc};\6
+\4${}\}{}$\2\par
+\fi
+
+\M{45}Set a breakpoint.\par
+The command accepts up to three arguments. In it's simplest form it is
+
+{\parindent = 5em\indent {\sc BREAK} {\it addr}}
+
+where {\it addr} is a valid \.{MIX} address.
+
+Another form
+
+{\parindent = 5em\indent {\sc BREAK} {\sc TEMP} {\it addr}}
+
+sets a temporary breakpoint, i.e. the one that will be removed after
+it is crossed.
+
+\Y\B\&{int} \\{m\_break}(\&{struct} \&{term\_input} ${}{*}\\{inp}){}$\1\1 $\{$ %
+\&{int} \\{addr};\6
+\&{int} \\{count}${}\K\T{0};{}$\7
+\&{if} ${}(\\{nextkn}(\\{inp})\E\.{T\_TEMP}){}$\5
+${}\{{}$\1\6
+${}\\{count}\K\T{1};{}$\6
+\\{nextkn}(\\{inp});\6
+\4${}\}{}$\2\6
+\&{if} ( \\{inp} $\MG$ $\&{token}.\\{type}\I\.{T\_NUMBER}$ ) \6
+${}\{{}$\1\6
+\&{return} \T{1};\6
+\4${}\}{}$\2\6
+\&{if} ${}((\\{addr}\K\\{getaddr}(\\{inp}))\E{-}\T{1}){}$\1\5
+\&{return} \T{1};\2\6
+\&{if} ${}(\\{nextkn}(\\{inp})\I\.{T\_EOL}){}$\1\5
+\&{return} \T{1};\2\6
+${}\\{bp\_set}(\\{addr},\39\\{count});{}$\6
+\&{return} \T{0}; $\}{}$\par
+\fi
+
+\M{46}A shorthand notation for \.{BREAK TEMP}.
+\Y\B\&{int} \\{m\_bt}(\&{struct} \&{term\_input} ${}{*}\\{inp}){}$\1\1\2\2\6
+${}\{{}$\1\6
+\&{int} \\{addr};\7
+\&{if} ${}(\\{nextkn}(\\{inp})\I\.{T\_NUMBER}){}$\1\5
+\&{return} \T{1};\2\6
+\&{if} ${}((\\{addr}\K\\{getaddr}(\\{inp}))\E{-}\T{1}){}$\1\5
+\&{return} \T{1};\2\6
+${}\\{bp\_set}(\\{addr},\39\T{1});{}$\6
+\&{return} \T{0};\6
+\4${}\}{}$\2\par
+\fi
+
+\M{47}This variable controls whether breakpoints are addressed by their number
+of
+by the address they are set to. If \PB{\\{address\_mode}} is 1, the addresses
+are
+used.
+
+\Y\B\&{static} \&{int} \\{address\_mode};\par
+\fi
+
+\M{48}A prefix for any breakpoint manipulation command:\par
+{\parindent=5em\indent{\sc ADDRESS [{\it breakpoint-command}]}}.
+
+When used, specifies that the breakpoints are addressed by the address they
+are set to, instead of breakpoint number. E.g.:
+
+{\parindent=5em\indent{\sc ADDRESS ENABLE 1000}}.
+
+\Y\B\&{int} \\{m\_address}(\&{struct} \&{term\_input} ${}{*}\\{inp}){}$\1\1\2\2%
+\6
+${}\{{}$\1\6
+${}\\{address\_mode}\K\T{1};{}$\6
+\&{return} \T{0};\6
+\4${}\}{}$\2\par
+\fi
+
+\M{49}Clear a breakpoint.\par
+{\parindent=5em\indent{\sc DELETE {\it n}}}
+
+Deletes a breakpoint with the given sequence number {\it n}.
+
+When prefixed with {\sc ADDRESS}, deletes all breakpoints set on address
+{\it n}.
+
+Several breakpoint numbers or addresses can be given.
+
+\Y\B\&{int} \\{m\_delete}(\&{struct} \&{term\_input} ${}{*}\\{inp}){}$\1\1 $\{$
+\6
+\&{if} ${}(\\{nextkn}(\\{inp})\E\.{T\_EOL}){}$\5
+${}\{{}$\1\6
+\&{if} ${}(\R\\{inp}\MG\\{interactive}\V\\{getyn}(\.{"DELETE\ ALL\ BREAKPOI}\)%
+\.{NTS"})){}$\1\5
+${}\\{bp\_delete}({-}\T{1});{}$\2\6
+\&{return} \T{0};\6
+\4${}\}{}$\2\6
+\&{do} $\{$ \&{if} ( \\{inp} $\MG$ $\&{token}.\\{type}\I\.{T\_NUMBER}$ ) %
+\&{return} \T{1}; \&{if} (\\{address\_mode}) $\{$ \&{int} \\{cur};\7
+\&{if} ${}(\\{getaddr}(\\{inp})\E{-}\T{1}){}$\1\5
+\&{return} \T{1};\2\6
+\&{for} ( $\\{cur}\K\\{bp\_first}$ ( \\{inp} $\MG$ $\&{token}.\\{number}$ )  ;\6
+\\{cur}; ) \6
+${}\{{}$\1\6
+\&{int} \\{next}${}\K\\{bp\_next}(\\{cur});{}$\7
+\\{bp\_delete}(\\{cur});\6
+${}\\{cur}\K\\{next};{}$\6
+\4${}\}{}$\2\6
+$\}$ \&{else} \\{bp\_delete} ( \\{inp} $\MG$ $\&{token}.\\{number}$ )  ; $\}$ \6
+\&{while} ${}(\\{nextkn}(\\{inp})\I\.{T\_EOL}){}$\1\5
+;\2\6
+\&{return} \T{0}; $\}{}$\par
+\fi
+
+\M{50}Auxiliar function for \.{ENABLE} and \.{DISABLE} command.
+Parses the rest of command line, and for each breakpoint specified there
+(either by its number or address, depending on the \PB{\\{address\_mode}}
+setting)
+sets its status to \PB{\\{status}}.
+
+\Y\B\&{int} \\{change\_breakpoint\_status}(\&{struct} \&{term\_input} ${}{*}%
+\\{inp},\39{}$\&{int} \\{status})\1\1 $\{$ \6
+\&{if} ${}(\\{nextkn}(\\{inp})\E\.{T\_EOL}){}$\5
+${}\{{}$\1\6
+${}\\{bp\_enable}({-}\T{1},\39\\{status});{}$\6
+\&{return} \T{0};\6
+\4${}\}{}$\2\6
+\&{do} $\{$ \&{if} ( \\{inp} $\MG$ $\&{token}.\\{type}\I\.{T\_NUMBER}$ ) %
+\&{return} \T{1}; \&{if} (\\{address\_mode}) $\{$ \&{int} \|n;\7
+\&{if} ${}(\\{getaddr}(\\{inp})\E{-}\T{1}){}$\1\5
+\&{return} \T{1};\2\6
+\&{for} ( $\|n\K\\{bp\_first}$ ( \\{inp} $\MG$ $\&{token}.\\{number}$ )  ;\6
+\|n; $\|n\K\\{bp\_next}(\|n)$ ) \\{bp\_enable} ( \\{inp} $\MG$ $\&{token}.%
+\\{number},{}$ \\{status} )  ; $\}$ \&{else} \\{bp\_enable} ( \\{inp} $\MG$ $%
+\&{token}.\\{number},{}$ \\{status} )  ; $\}$ \6
+\&{while} ${}(\\{nextkn}(\\{inp})\I\.{T\_EOL}){}$\1\5
+;\2\6
+\&{return} \T{0}; $\}{}$\par
+\fi
+
+\M{51}Enable a breakpoint.\par
+{\parindent=5em\indent{\sc ENABLE {\it n}}}
+
+Disable a breakpoint with the given sequence number {\it n}.
+
+When prefixed with {\sc ADDRESS}, changes all breakpoints set on
+address {\it n}.
+
+Several breakpoint numbers or addresses can be given.
+
+\Y\B\&{int} \\{m\_enable}(\&{struct} \&{term\_input} ${}{*}\\{inp}){}$\1\1\2\2\6
+${}\{{}$\1\6
+\&{return} \\{change\_breakpoint\_status}${}(\\{inp},\39\T{1});{}$\6
+\4${}\}{}$\2\par
+\fi
+
+\M{52}Disable a breakpoint.\par
+{\parindent=5em\indent{\sc DISABLE {\it n}}}
+
+Disable a breakpoint with the given sequence number {\it n}.
+
+When prefixed with {\sc ADDRESS}, changes all breakpoints set on
+address {\it n}.
+
+Several breakpoint numbers or addresses can be given.
+
+\Y\B\&{int} \\{m\_disable}(\&{struct} \&{term\_input} ${}{*}\\{inp}){}$\1\1\2\2%
+\6
+${}\{{}$\1\6
+\&{return} \\{change\_breakpoint\_status}${}(\\{inp},\39\T{0});{}$\6
+\4${}\}{}$\2\par
+\fi
+
+\M{53}Ignore next {\it count} crossings of breakpoint {\it n}.\par
+{\parindent=5em\indent{\sc IGNORE {\it n} {\it count}}}
+
+When prefixed with {\sc ADDRESS}, changes all breakpoints set on
+address {\it n}.
+
+\Y\B\&{int} \\{m\_ignore}(\&{struct} \&{term\_input} ${}{*}\\{inp}){}$\1\1 $\{$
+\&{int} \|n;\6
+\&{unsigned} \\{count};\7
+\&{if} ${}(\\{nextkn}(\\{inp})\I\.{T\_NUMBER}){}$\1\5
+\&{return} \T{1};\2\6
+$\|n\K\\{inp}$ $\MG$ $\&{token}.\\{number};{}$\7
+\&{if} ${}(\\{nextkn}(\\{inp})\I\.{T\_NUMBER}){}$\1\5
+\&{return} \T{1};\2\6
+$\\{count}\K\\{inp}$ $\MG$ $\&{token}.\\{number};{}$\7
+\&{if} (\\{address\_mode})\5
+${}\{{}$\1\6
+\&{int} \|i;\7
+\&{for} ${}(\|i\K\\{bp\_first}(\|n);{}$ \|i; ${}\|i\K\\{bp\_next}(\|i)){}$\1\5
+${}\\{bp\_set\_ignore}(\|i,\39\\{count});{}$\2\6
+\4${}\}{}$\2\6
+\&{else}\1\5
+${}\\{bp\_set\_ignore}(\|n,\39\\{count});{}$\2\6
+\&{return} \T{0}; $\}{}$\par
+\fi
+
+\M{54}Disable breakpoint {\it n} after next {\it count} crossings.\par
+{\parindent=5em\indent{\sc PASSCOUNT {\it n} {\it count}}}
+
+When prefixed with {\sc ADDRESS}, changes all breakpoints set on
+address {\it n}.
+
+\Y\B\&{int} \\{m\_passcount}(\&{struct} \&{term\_input} ${}{*}\\{inp}){}$\1\1 $%
+\{$ \&{int} \|n;\6
+\&{unsigned} \\{max\_hits};\7
+\&{if} ${}(\\{nextkn}(\\{inp})\I\.{T\_NUMBER}){}$\1\5
+\&{return} \T{1};\2\6
+$\|n\K\\{inp}$ $\MG$ $\&{token}.\\{number};{}$\7
+\&{if} ${}(\\{nextkn}(\\{inp})\I\.{T\_NUMBER}){}$\1\5
+\&{return} \T{1};\2\6
+$\\{max\_hits}\K\\{inp}$ $\MG$ $\&{token}.\\{number};{}$\7
+\&{if} (\\{address\_mode})\5
+${}\{{}$\1\6
+\&{int} \|i;\7
+\&{for} ${}(\|i\K\\{bp\_first}(\|n);{}$ \|i; ${}\|i\K\\{bp\_next}(\|i)){}$\1\5
+${}\\{bp\_set\_max\_crossings}(\|i,\39\\{max\_hits});{}$\2\6
+\4${}\}{}$\2\6
+\&{else}\1\5
+${}\\{bp\_set\_max\_crossings}(\|n,\39\\{max\_hits});{}$\2\6
+\&{return} \T{0}; $\}{}$\par
+\fi
+
+\M{55}List breakpoints.
+\Y\B\&{int} \\{m\_lb}(\&{struct} \&{term\_input} ${}{*}\\{inp}){}$\1\1 $\{$ %
+\&{int} \|n${}\K{-}\T{1};$ \&{if} ${}(\\{nextkn}(\\{inp})\E\.{T\_NUMBER})$ $\{$
+$\|n\K\\{inp}$ $\MG$ $\&{token}.\\{number};{}$\7
+\\{nextkn}(\\{inp}); $\}$ \&{if} ( \\{inp} $\MG$ $\&{token}.\\{type}\I\.{T%
+\_EOL}$ ) \&{return} \T{1};\6
+${}\\{list\_bp}(\|n,\39\\{address\_mode});{}$\6
+\&{return} \T{0}; $\}{}$\par
+\fi
+
+\M{56}List \.{I/O} devices.
+\Y\B\&{int} \\{m\_lio}(\&{struct} \&{term\_input} ${}{*}\\{inp}){}$\1\1 $\{$ %
+\&{int} \\{dev}${}\K{-}\T{1};$ \&{if} ${}(\\{nextkn}(\\{inp})\E\.{T\_NUMBER})$
+$\{$ $\\{dev}\K\\{inp}$ $\MG$ $\&{token}.\\{number};{}$\7
+\\{nextkn}(\\{inp}); $\}$ \&{if} ( \\{inp} $\MG$ $\&{token}.\\{type}\I\.{T%
+\_EOL}$ ) \&{return} \T{1};\6
+\\{list\_io}(\\{dev});\6
+\&{return} \T{0}; $\}{}$\par
+\fi
+
+\M{57}List command.
+
+There are three variants of this command:
+
+\tabskip=1em \halign{%
+\strut\sc#\hfil&\strut{\raggedright#}\cr
+LIST IO & Lists all existing I/O devices\cr
+LIST IO {\it num} & lists the device number {\it num}\cr
+LIST BREAK &  lists all breakpoints\cr}
+
+For compatibility with \.{GDB}, \.{INFO} may be used instead of \.{LIST}.
+
+\Y\B\&{int} \\{m\_list}(\&{struct} \&{term\_input} ${}{*}\\{inp}){}$\1\1\2\2\6
+${}\{{}$\1\6
+\&{switch} (\\{nextkn}(\\{inp}))\5
+${}\{{}$\1\6
+\4\&{case} \.{T\_IO}:\5
+\&{return} \\{m\_lio}(\\{inp});\6
+\4\&{case} \.{T\_BREAK}:\5
+\&{return} \\{m\_lb}(\\{inp});\6
+\4\&{default}:\5
+\&{return} \T{1};\6
+\4${}\}{}$\2\6
+\4${}\}{}$\2\par
+\fi
+
+\M{58}Auxiliary function for \.{NEXT} and \.{STEP}.
+
+\Y\B\&{int} \\{next\_or\_step}(\&{struct} \&{term\_input} ${}{*}\\{inp},\39{}$%
+\&{int} \\{step\_into})\1\1 $\{$ \&{unsigned} \\{count}${}\K\T{1};{}$\7
+\\{nextkn}(\\{inp}); \&{if} ( \\{inp} $\MG$ $\&{token}.\\{type}\E\.{T\_NUMBER}$
+) $\{$ \&{if} ( \\{inp} $\MG$ $\&{token}.\\{number}>\T{0}$ ) $\\{count}\K%
+\\{inp}$ $\MG$ $\&{token}.\\{number};{}$\7
+\\{nextkn}(\\{inp}); $\}$ \&{if} ( \\{inp} $\MG$ $\&{token}.\\{type}\I\.{T%
+\_EOL}$ ) \&{return} \T{1};\6
+${}\\{set\_next}(\\{count},\39\\{step\_into});{}$\6
+\\{run}(\,);\6
+\&{return} \T{0}; $\}{}$\par
+\fi
+
+\M{59}Execute next \.{MIX} instruction.
+\Y\B\&{int} \\{m\_next}(\&{struct} \&{term\_input} ${}{*}\\{inp}){}$\1\1\2\2\6
+${}\{{}$\1\6
+\&{return} \\{next\_or\_step}${}(\\{inp},\39\|F);{}$\6
+\4${}\}{}$\2\par
+\fi
+
+\M{60}Execute next \.{MIX} instruction. If it is a call, step into the called
+function.
+\Y\B\&{int} \\{m\_step}(\&{struct} \&{term\_input} ${}{*}\\{inp}){}$\1\1\2\2\6
+${}\{{}$\1\6
+\&{return} \\{next\_or\_step}${}(\\{inp},\39\|T);{}$\6
+\4${}\}{}$\2\par
+\fi
+
+\M{61}Continue after crossing a breakpoint.
+\Y\B\&{int} \\{m\_cont}(\&{struct} \&{term\_input} ${}{*}\\{inp}){}$\1\1\2\2\6
+${}\{{}$\1\6
+\&{if} ${}(\\{nextkn}(\\{inp})\I\.{T\_EOL}){}$\1\5
+\&{return} \T{1};\2\6
+\\{run}(\,);\6
+\&{return} \T{0};\6
+\4${}\}{}$\2\par
+\fi
+
+\M{62}Assign \UNIX/ file name to \.{MIX} device number
+\Y\B\&{int} \\{m\_asgn}(\&{struct} \&{term\_input} ${}{*}\\{inp}){}$\1\1 $\{$ %
+\&{int} \\{devno};\7
+\&{if} ${}(\\{nextkn}(\\{inp})\I\.{T\_NUMBER}){}$\1\5
+\&{return} \T{1};\2\6
+$\\{devno}\K\\{inp}$ $\MG$ $\&{token}.\\{number};{}$\7
+\&{if} ${}(\\{nextkn}(\\{inp})\E\.{T\_EOL}){}$\1\5
+\&{return} \T{1};\2\6
+\\{asgn\_io} $(\\{devno},\39$ \\{inp} $\MG$ $\&{token}.\\{string}$ )  ;\6
+\&{return} \T{0}; $\}{}$\par
+\fi
+
+\M{63}Emulate \.{MIX} \.{GO} button.
+\Y\B\&{int} \\{m\_go}(\&{struct} \&{term\_input} ${}{*}\\{inp}){}$\1\1\2\2\6
+${}\{{}$\1\6
+\&{if} ${}(\\{nextkn}(\\{inp})\I\.{T\_EOL}){}$\1\5
+\&{return} \T{1};\2\6
+\\{go}(\,);\6
+\&{return} \T{0};\6
+\4${}\}{}$\2\par
+\fi
+
+\M{64}Dump registers.
+\Y\B\&{int} \\{m\_dr}(\&{struct} \&{term\_input} ${}{*}\\{inp}){}$\1\1\2\2\6
+${}\{{}$\1\6
+\&{if} ${}(\\{nextkn}(\\{inp})\I\.{T\_EOL}){}$\1\5
+\&{return} \T{1};\2\6
+\\{dump\_status}(\,);\6
+\&{return} \T{0};\6
+\4${}\}{}$\2\par
+\fi
+
+\M{65}Dump memory range.\par
+{\parindent=5em\indent{\sc DM} [{\it addr} [{\it addr}]]}
+Optional arguments specify start and end addresses of
+the memory block to be displayed. The addresses are rounded to the nearest
+memory boundary divisible by 5 (see \PB{$\X0:Diagnostic functions\X$}.)
+
+If no arguments are given, prints the entire \.{MIX} memory.
+
+\Y\B\&{int} \\{m\_dm}(\&{struct} \&{term\_input} ${}{*}\\{inp}){}$\1\1 $\{$ %
+\&{int} \\{start\_loc}${}\K\T{0},{}$ \\{end\_loc}${}\K\.{MEMSIZE};{}$\7
+\&{if} ${}(\\{nextkn}(\\{inp})\E\.{T\_NUMBER}){}$\5
+${}\{{}$\1\6
+\&{if} ${}((\\{start\_loc}\K\\{getaddr}(\\{inp}))\E{-}\T{1}){}$\5
+${}\{{}$\1\6
+\&{return} \T{1};\6
+\4${}\}{}$\2\6
+\&{if} ${}(\\{nextkn}(\\{inp})\E\.{T\_NUMBER}){}$\5
+${}\{{}$\1\6
+\&{if} ${}((\\{end\_loc}\K\\{getaddr}(\\{inp}))\E{-}\T{1}){}$\1\5
+\&{return} \T{1};\2\6
+\\{nextkn}(\\{inp});\6
+\4${}\}{}$\2\6
+\4${}\}{}$\2\6
+\&{if} ${}(\\{end\_loc}<\\{start\_loc}){}$\5
+${}\{{}$\1\6
+\\{printf}(\.{"BAD\ RANGE\\n"});\6
+\&{return} \T{0};\6
+\4${}\}{}$\2\6
+\&{if} ( \\{inp} $\MG$ $\&{token}.\\{type}\I\.{T\_EOL}$ ) \&{return} \T{1};\6
+${}\\{dump\_memory}(\\{start\_loc},\39\\{end\_loc});{}$\6
+\&{return} \T{0}; $\}{}$\par
+\fi
+
+\M{66}Dump memory or registers
+\Y\B\&{int} \\{m\_dump}(\&{struct} \&{term\_input} ${}{*}\\{inp}){}$\1\1\2\2\6
+${}\{{}$\1\6
+\&{switch} (\\{nextkn}(\\{inp}))\5
+${}\{{}$\1\6
+\4\&{case} \.{T\_MEMORY}:\5
+\&{return} \\{m\_dm}(\\{inp});\6
+\4\&{case} \.{T\_REGISTERS}:\5
+\&{return} \\{m\_dr}(\\{inp});\6
+\4\&{case} \.{T\_EOL}:\5
+\\{dump}(\,);\6
+\&{return} \T{0};\6
+\4\&{default}:\5
+\&{return} \T{1};\6
+\4${}\}{}$\2\6
+\4${}\}{}$\2\par
+\fi
+
+\M{67}Disassemble a memory range.\par
+{\parindent=5em{\sc UNASM} [{\it addr} [{\it addr}]]}
+If no arguments are specified, disassembles the next instruction.
+Short notation: {\sc U}.
+
+\Y\B\&{int} \\{m\_unasm}(\&{struct} \&{term\_input} ${}{*}\\{inp}){}$\1\1 $\{$ %
+\&{extern} \&{int} \\{loc};\6
+\&{int} \\{start\_loc}${}\K\\{loc},{}$ \\{end\_loc}${}\K\\{loc}+\T{5};{}$\7
+\&{if} ${}(\\{nextkn}(\\{inp})\E\.{T\_NUMBER}){}$\5
+${}\{{}$\1\6
+\&{if} ${}((\\{start\_loc}\K\\{getaddr}(\\{inp}))\E{-}\T{1}){}$\1\5
+\&{return} \T{1};\2\6
+\&{if} ${}(\\{nextkn}(\\{inp})\E\.{T\_NUMBER}){}$\5
+${}\{{}$\1\6
+\&{if} ${}((\\{end\_loc}\K\\{getaddr}(\\{inp}))\E{-}\T{1}){}$\1\5
+\&{return} \T{1};\2\6
+\\{nextkn}(\\{inp});\6
+\4${}\}{}$\2\6
+\&{else}\1\5
+${}\\{end\_loc}\K\\{start\_loc}+\T{5};{}$\2\6
+\4${}\}{}$\2\6
+\&{if} ${}(\\{end\_loc}<\\{start\_loc}){}$\5
+${}\{{}$\1\6
+\\{printf}(\.{"BAD\ RANGE\\n"});\6
+\&{return} \T{0};\6
+\4${}\}{}$\2\6
+\&{if} ( \\{inp} $\MG$ $\&{token}.\\{type}\I\.{T\_EOL}$ ) \&{return} \T{1};\6
+${}\\{disas}(\\{stdout},\39\\{start\_loc},\39\\{end\_loc});{}$\6
+\&{return} \T{0}; $\}{}$\par
+\fi
+
+\M{68}Exit the terminal.
+\Y\B\&{int} \\{m\_quit}(\&{struct} \&{term\_input} ${}{*}\\{inp}){}$\1\1\2\2\6
+${}\{{}$\1\6
+\\{exit}(\T{0});\6
+\4${}\}{}$\2\par
+\fi
+
+\M{69}Execute a shell command.
+\Y\B\&{int} \\{m\_shell}(\&{struct} \&{term\_input} ${}{*}\\{inp}){}$\1\1\2\2\6
+${}\{{}$\1\6
+\&{while} ${}({*}\\{inp}\MG\\{curp}\W\\{isspace}({*}\\{inp}\MG\\{curp})){}$\1\5
+${}\\{inp}\MG\\{curp}\PP;{}$\2\6
+\&{if} ${}({*}\\{inp}\MG\\{curp}){}$\1\5
+${}\\{system}(\\{inp}\MG\\{curp});{}$\2\6
+\&{else}\5
+${}\{{}$\1\6
+\&{char} ${}{*}\\{sh}\K\\{getenv}(\.{"SHELL"});{}$\7
+\&{if} ${}(\R\\{sh}){}$\1\5
+${}\\{sh}\K\.{"/bin/sh"};{}$\2\6
+\\{system}(\\{sh});\6
+\4${}\}{}$\2\6
+${}{*}\\{inp}\MG\\{curp}\K\T{0};{}$\6
+\&{return} \T{0};\6
+\4${}\}{}$\2\par
+\fi
+
+\M{70}Source a file.
+\Y\B\&{int} \\{m\_source}(\&{struct} \&{term\_input} ${}{*}\\{inp}){}$\1\1 $\{$
+\6
+\&{if} ${}(\\{nextkn}(\\{inp})\E\.{T\_EOL}){}$\1\5
+\&{return} \T{1};\2\6
+\\{source\_file} ( \\{inp} $\MG$ $\&{token}.\\{string},{}$ \T{0} )  ;\6
+\&{if} ${}(\\{nextkn}(\\{inp})\I\.{T\_EOL}){}$\1\5
+\&{return} \T{1};\2\6
+\&{return} \T{0}; $\}{}$\par
+\fi
+
+\M{71}Show program version and short licensing information.
+
+\Y\B\&{int} \\{m\_version}(\&{struct} \&{term\_input} ${}{*}\\{inp}){}$\1\1\2\2%
+\6
+${}\{{}$\1\6
+\&{if} ${}(\\{nextkn}(\\{inp})\I\.{T\_EOL}){}$\1\5
+\&{return} \T{1};\2\6
+\\{mix\_version}(\\{program\_name});\6
+\&{return} \T{0};\6
+\4${}\}{}$\2\par
+\fi
+
+\M{72}Process end of line.
+
+\Y\B\&{int} \\{m\_eol}(\&{struct} \&{term\_input} ${}{*}\\{inp}){}$\1\1\2\2\6
+${}\{{}$\1\6
+${}\\{address\_mode}\K\T{0};{}$\6
+\&{return} \T{0};\6
+\4${}\}{}$\2\par
+\fi
+
+\M{73}Indicate syntax error.
+\Y\B\&{int} \\{m\_err}(\&{struct} \&{term\_input} ${}{*}\\{inp}){}$\1\1\2\2\6
+${}\{{}$\1\6
+\&{if} ${}(\\{inp}\MG\\{interactive}){}$\1\5
+\\{printf}(\.{"NOT\ RECOGNIZED\\n"});\2\6
+\&{else}\1\5
+${}\\{printf}(\.{"\%s:\%u:\ \%s\\n"},\39\\{inp}\MG\\{input\_file},\39\\{inp}\MG%
+\\{input\_line},\39\.{"NOT\ RECOGNIZED"});{}$\2\6
+${}\\{inp}\MG\\{curp}\K\NULL;{}$\6
+\&{return} \T{0};\6
+\4${}\}{}$\2\par
+\fi
+
+\M{74}Structure of the dispatcher table.
+\Y\B\&{struct} \&{disp} ${}\{{}$\1\6
+\&{int} \\{tok};\C{ Token type }\6
+\&{int} ${}({*}\\{fun}){}$(\&{struct} \&{term\_input} ${}{*}\\{inp}){}$;\C{
+Handler function }\6
+\&{char} ${}{*}\\{help}{}$;\C{ Usage description }\2\6
+${}\}{}$;\par
+\fi
+
+\M{75}Return a dispatcher structure for the token \PB{\\{tok}}.
+\Y\B\&{struct} \&{disp} ${}{*}{}$\\{find\_disp}(\&{struct} \&{disp} ${}{*}%
+\\{dsp},\39{}$\&{int} \\{tok})\1\1\2\2\6
+${}\{{}$\1\6
+\&{for} ( ; ${}\\{dsp}\MG\\{tok};{}$ ${}\\{dsp}\PP){}$\5
+${}\{{}$\1\6
+\&{if} ${}(\\{tok}\E\\{dsp}\MG\\{tok}){}$\1\5
+\&{return} \\{dsp};\2\6
+\4${}\}{}$\2\6
+\&{return} ${}\NULL;{}$\6
+\4${}\}{}$\2\par
+\fi
+
+\M{76}Default help function.
+\Y\B\&{static} \&{void} \\{help\_kw}(\&{int} \\{tok});\6
+\&{static} \&{void} \\{help\_all}(\&{void}); \&{int} \\{m\_help}(\&{struct} %
+\&{term\_input} ${}{*}\\{inp}){}$\1\1 $\{$ \6
+\&{if} ${}(\\{nextkn}(\\{inp})\E\.{T\_EOL}){}$\1\5
+\\{help\_all}(\,);\2\6
+\&{else} \\{help\_kw} ( \\{inp} $\MG$ $\&{token}.\\{type}$ )  ;\6
+\&{return} \T{0}; $\}{}$\par
+\fi
+
+\M{77}Dispatcher table for MIX terminal commands.
+\Y\B\&{struct} \&{disp} \\{main\_disp}[\,]${}\K\{\{\.{T\_ADDRESS},\39\\{m%
+\_address},\39\.{"ADDRESS\ <BREAKPOINT}\)\.{\ COMMAND>"}\},\39\{\.{T\_BREAK},%
+\39\\{m\_break},\39\.{"BREAK\ [TEMP]\ <NUM>\ }\)\.{[<NUM>...]"}\},{}$\6
+${}\{\.{T\_BT},\39\\{m\_bt},\39\.{"BT\ <ADDR>"}\},{}$\6
+${}\{\.{T\_DELETE},\39\\{m\_delete},\39\.{"DELETE\ [<NUM>...]"}\},{}$\6
+${}\{\.{T\_ENABLE},\39\\{m\_enable},\39\.{"ENABLE\ [<NUM>...]"}\},{}$\6
+${}\{\.{T\_DISABLE},\39\\{m\_disable},\39\.{"DISABLE\ [<NUM>...]"}\},{}$\6
+${}\{\.{T\_IGNORE},\39\\{m\_ignore},\39\.{"IGNORE\ <NUM>\ <COUNT}\)\.{>"}\},{}$%
+\6
+${}\{\.{T\_PASSCOUNT},\39\\{m\_passcount},\39\.{"PASSCOUNT\ <NUM>\ <CO}\)%
+\.{UNT>"}\},{}$\6
+${}\{\.{T\_LIST},\39\\{m\_list},\39\.{"INFO\ [BREAK|IO]\ [<N}\)\.{UM>]"}\},{}$\6
+${}\{\.{T\_LB},\39\\{m\_lb},\39\.{"LB\ [<NUM>]"}\},{}$\6
+${}\{\.{T\_LI},\39\\{m\_lio},\39\.{"LI\ [<DEVICE>]"}\},{}$\6
+${}\{\.{T\_NEXT},\39\\{m\_next},\39\.{"NEXT\ [<NUM>]"}\},{}$\6
+${}\{\.{T\_STEP},\39\\{m\_step},\39\.{"STEP\ [<NUM>]"}\},{}$\6
+${}\{\.{T\_ASGN},\39\\{m\_asgn},\39\.{"ASGN\ <DEVICE>\ <FILE}\)\.{>"}\},{}$\6
+${}\{\.{T\_GO},\39\\{m\_go},\39\.{"GO"}\},{}$\6
+${}\{\.{T\_DUMP},\39\\{m\_dump},\39\.{"DUMP\ [REGISTERS|MEM}\)\.{ORY\ [<ADDR>\
+[<ADDR>]}\)\.{]]"}\},{}$\6
+${}\{\.{T\_DR},\39\\{m\_dr},\39\.{"DR"}\},{}$\6
+${}\{\.{T\_DM},\39\\{m\_dm},\39\.{"DM\ [<ADDR>\ [<ADDR>]}\)\.{]"}\},{}$\6
+${}\{\.{T\_QUIT},\39\\{m\_quit},\39\.{"QUIT"}\},{}$\6
+${}\{\.{T\_EOL},\39\\{m\_eol},\39\NULL\},{}$\6
+${}\{\.{T\_CONT},\39\\{m\_cont},\39\.{"CONTINUE"}\},{}$\6
+${}\{\.{T\_UNASM},\39\\{m\_unasm},\39\.{"DISASSEMBLE\ [<ADDR>}\)\.{\
+[<ADDR>]]"}\},{}$\6
+${}\{\.{T\_HELP},\39\\{m\_help},\39\.{"HELP\ [<COMMAND>]"}\},{}$\6
+${}\{\.{T\_SHELL},\39\\{m\_shell},\39\.{"SHELL\ [<COMMAND>\ [<}\)\.{ARGS>]]"}%
+\},{}$\6
+${}\{\.{T\_SOURCE},\39\\{m\_source},\39\.{"SOURCE\ <FILE>"}\},{}$\6
+${}\{\.{T\_VERSION},\39\\{m\_version},\39\.{"VERSION"}\},{}$\6
+${}\{\T{0}\}{}$\6
+${}\}{}$;\par
+\fi
+
+\M{78}Produce a help summary for all commands.
+\Y\B\&{static} \&{void} \\{help\_all}(\,)\1\1\2\2\6
+${}\{{}$\1\6
+\&{struct} \&{disp} ${}{*}\\{dsp};{}$\7
+\&{for} ${}(\\{dsp}\K\\{main\_disp};{}$ ${}\\{dsp}\MG\\{tok};{}$ ${}\\{dsp}%
+\PP){}$\5
+${}\{{}$\1\6
+\&{if} ${}(\\{dsp}\MG\\{help}){}$\1\5
+${}\\{printf}(\.{"\%s\\n"},\39\\{dsp}\MG\\{help});{}$\2\6
+\4${}\}{}$\2\6
+\4${}\}{}$\2\par
+\fi
+
+\M{79}Produce a help summary for the token \PB{\\{tok}}.
+\Y\B\&{static} \&{void} \\{help\_kw}(\&{int} \\{tok})\1\1\2\2\6
+${}\{{}$\1\6
+\&{struct} \&{disp} ${}{*}\\{dsp}\K\\{find\_disp}(\\{main\_disp},\39%
+\\{tok});{}$\7
+\&{if} ${}(\R\\{dsp}){}$\1\5
+\\{printf}(\.{"NO\ HELP\ FOR\ THIS\ CO}\)\.{MMAND\\n"});\2\6
+\&{else}\1\5
+${}\\{printf}(\.{"\%s\\n"},\39\\{dsp}\MG\\{help});{}$\2\6
+\4${}\}{}$\2\par
+\fi
+
+\M{80}\.{MIX} terminal prompt. In homage to \.{IBM} 360.
+
+\Y\B\&{char} \\{init\_prompt}[\,]${}\K\.{"\\nMIX\ TERMINAL\ STAT}\)\.{ION\
+READY\ FOR\ COMMUN}\)\.{ICATION\\n"}{}$;\par
+\fi
+
+\M{81}Main loop. Reads and executes commands.
+
+\Y\B\&{void} \\{read\_and\_do\_loop}(\&{struct} \&{term\_input} ${}{*}%
+\\{inp}){}$\1\1 $\{$ \&{while} (\\{nextkn}(\\{inp})) $\{$ \&{struct} \&{disp}
+${}{*}\\{dsp}$ $\K$ \\{find\_disp} $(\\{main\_disp},\39$ \\{inp} $\MG$ $%
+\&{token}.\\{type}$ )  ;\6
+\&{if} (\\{dsp})\5
+${}\{{}$\1\6
+\&{if} ${}(({*}\\{dsp}\MG\\{fun})(\\{inp})){}$\5
+${}\{{}$\1\6
+\&{if} ${}(\\{inp}\MG\\{interactive}\W\\{dsp}\MG\\{help}){}$\1\5
+${}\\{printf}(\.{"USAGE:\ \%s\\n"},\39\\{dsp}\MG\\{help});{}$\2\6
+\&{else}\1\5
+${}\\{error\_at\_line}(\T{0},\39\T{0},\39\\{inp}\MG\\{input\_file},\39\\{inp}%
+\MG\\{input\_line},\39\.{"SYNTAX\ ERROR"});{}$\2\6
+\&{if} ${}(\R\\{inp}\MG\\{interactive}){}$\1\5
+\&{break};\2\6
+\4${}\}{}$\2\6
+\4${}\}{}$\2\6
+\&{else}\5
+${}\{{}$\1\6
+\\{m\_err}(\\{inp});\6
+\&{if} ${}(\R\\{inp}\MG\\{interactive}){}$\1\5
+\&{break};\2\6
+\4${}\}{}$\2\6
+${}\\{inp}\MG\\{input\_line}\PP;$ $\}$ $\}{}$\par
+\fi
+
+\M{82}Read commands from \PB{\\{file}}. If \PB{\\{quite}} is 1, do not bail out
+on non-existing
+files.
+
+Return 1 if \PB{\\{file}} does not exist, and 0 otherwise.
+
+\Y\B\&{int} \\{source\_file}(\&{char} ${}{*}\\{file},\39{}$\&{int} \\{quiet})\1%
+\1\2\2\6
+${}\{{}$\1\6
+\&{struct} \&{term\_input} \\{inp};\6
+\&{FILE} ${}{*}\\{fp}\K\\{fopen}(\\{file},\39\.{"r"});{}$\7
+\&{if} ${}(\R\\{fp}){}$\5
+${}\{{}$\1\6
+\&{if} ${}(\R\\{quiet}){}$\1\6
+\&{error} ${}(\T{0},\39\\{errno},\39\.{"CANNOT\ OPEN\ FILE\ `\%}\)\.{s'"},\39%
+\\{file}){}$\1\5
+;\2\2\6
+\&{return} \T{1};\6
+\4${}\}{}$\2\6
+${}\\{memset}({\AND}\\{inp},\39\T{0},\39{}$\&{sizeof} \\{inp});\6
+${}\\{inp}.\\{reader}\K\\{file\_reader};{}$\6
+${}\\{inp}.\\{arg}\K\\{fp};{}$\6
+${}\\{inp}.\\{input\_file}\K\\{file};{}$\6
+${}\\{inp}.\\{input\_line}\K\T{1};{}$\6
+${}\\{inp}.\\{interactive}\K\T{0};{}$\6
+${}\\{read\_and\_do\_loop}({\AND}\\{inp});{}$\6
+${}\\{free}(\\{inp}.\\{buffer});{}$\6
+\\{fclose}(\\{fp});\6
+\&{return} \T{0};\6
+\4${}\}{}$\2\par
+\fi
+
+\M{83}Main terminal function.
+\Y\B\&{void} \\{mixterm}(\,)\1\1\2\2\6
+${}\{{}$\1\6
+\&{struct} \&{term\_input} \\{inp};\7
+${}\\{memset}({\AND}\\{inp},\39\T{0},\39{}$\&{sizeof} \\{inp});\6
+${}\\{inp}.\\{reader}\K\\{readline\_reader};{}$\6
+${}\\{inp}.\\{input\_file}\K\.{"<stdin>"};{}$\6
+${}\\{inp}.\\{input\_line}\K\T{1};{}$\6
+${}\\{inp}.\\{interactive}\K\\{isatty}(\T{0});{}$\6
+\&{if} ${}(\\{inp}.\\{interactive}){}$\5
+${}\{{}$\1\6
+\\{mixterm\_readline\_init}(\,);\6
+${}\\{printf}(\.{"\%s\\n"},\39\\{init\_prompt});{}$\6
+\4${}\}{}$\2\6
+${}\\{source\_file}(\.{".mixsim"},\39\T{1});{}$\6
+${}\\{read\_and\_do\_loop}({\AND}\\{inp});{}$\6
+\8\#\&{ifdef} \.{WITH\_READLINE}\6
+\&{if} ${}(\\{inp}.\\{interactive}){}$\1\5
+\\{write\_history}(\\{history\_file\_name}(\,));\2\6
+\8\#\&{endif}\6
+\4${}\}{}$\2\par
+\fi
+
+
+\inx
+\fin
+\con

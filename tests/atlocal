@@ -1,0 +1,7 @@
+# tests/atlocal.  Generated from atlocal.in by configure.                                     -*- shell-script -*-
+# Configurable variable values for MIX test suite.
+
+PATH=/root/src/mix-2.0/tests:/root/src/mix-2.0/src:$top_srcdir:$srcdir:$PATH
+MIXDIR=/root/src/mix-2.0/tests
+EXAMPLES=/root/src/mix-2.0/examples
+

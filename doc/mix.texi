@@ -1,0 +1,1609 @@
+\input texinfo @c -*-texinfo-*-
+@smallbook
+@c %**start of header
+@setfilename mix.info
+@settitle MIX
+@c %**end of header
+@setchapternewpage odd
+
+@include version.texi
+@include macros.texi
+
+@defcodeindex op
+@defcodeindex kw
+@syncodeindex fn cp
+@syncodeindex pg cp
+@syncodeindex op cp
+@syncodeindex kw cp
+
+@ifinfo
+@dircategory MIX Emulator
+@direntry
+* mixsim: (mix)mixsim.      Run a MIX program.
+* mixal: (mix)mixal.        Assemble a MIXAL program.
+@end direntry
+@end ifinfo
+
+@copying
+Copyright @copyright{} 2005 Sergey Poznyakoff, Douglas Laing
+
+Permission is granted to copy, distribute and/or modify this document
+under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no
+Invariant Sections, with the Front-Cover texts being ``MIX Simulator Manual'',
+and with the Back-Cover Texts as in (a) below.  A copy of the license
+is included in the section entitled ``GNU Free Documentation License''.
+
+(a) The FSF's Back-Cover Text is: ``You have freedom to copy and modify
+this Manual, like GNU software. Help the software be free.''
+@end copying
+
+@titlepage
+@title MIX
+@subtitle version @value{VERSION}, @value{UPDATED}
+@author Sergey Poznyakoff.
+@page
+@vskip 0pt plus 1filll
+@insertcopying
+@end titlepage
+
+@page
+@summarycontents
+@page
+@contents
+
+@node Top, Intro, (dir), (dir)
+
+@ifinfo
+@chapter MIX
+This edition of the @cite{@MIX{} Manual}, last updated @value{UPDATED},
+documents @MIX{} Version @value{VERSION}.
+@end ifinfo
+
+@menu
+* Intro::               Introduction to @MIX{}.
+* mixal::               @MIX{} Assembler.
+* mixsim::              @MIX{} Simulator.
+* mixrun::              Assemble and run a @MIX{} program.
+* Reporting Bugs::      How to Report a Bug.
+
+Appendices
+
+* Copying This Manual:: The GNU Free Documentation License.
+* Concept Index::       Index of Concepts.
+
+@end menu
+
+@node Intro, mixal, Top, Top
+@chapter Introduction to MIX
+
+@i{Plain MIX} is a set of tools for assembling, running and debugging
+programs, written in @MIXAL{}, an assembly language for an imaginary
+computer, @MIX{}, used in ``The Art of Computer Programming'' of D.@:
+Knuth.
+
+This package provides a development platform for those who wish to
+try out examples and exercises from the book. It includes the
+following programs:
+
+@table @command
+@item mixal
+A @MIXAL{} assembler, i.e. a program which translates a @MIXAL{}
+source file into a program that can be run on a @MIX{} machine.
+
+@item mixsim
+@MIX{} machine simulator. There is no real, hardware, @MIX{} machine,
+but you may use @command{mixsim} to emulate it and to run the
+programs, prepared by @command{mixal}. The @command{mixsim} utility
+also provides a @dfn{terminal mode} with a debugger, which is useful
+for finding and fixing bugs in your programs. It is also handy for
+educational purposes, as it allows to trace progam execution.
+
+@item mixrun
+A utility to run @MIXAL{} programs, without creating an intermediate
+object file.
+@end table
+
+This manual assumes the reader has some basic notions about @MIX{} and
+@MIXAL{} and that he has a copy of ``The Art of Computer Programming''
+(referred to in this book as @acronym{TAOCP}) at hand. The page
+references to @acronym{TAOCP} assume the Addison-Wesley edition,
+1968 (Library of congress catalog card no.@: 67-26020).
+
+@node mixal, mixsim, Intro, Top
+@chapter @command{mixal} -- @MIX{} Assembler.
+@pindex mixal
+  A @MIX{} assembler is called @command{mixal}. The utility
+assembles its standard input (or a named file), which should be a
+valid @MIXAL{} program, and writes the resulting object code to
+the standard output or to another file.
+
+@cindex @file{hello.mix}
+@cindex ``Hello, world'' program.
+  This chapter describes how to use @command{mixal}. The examples in
+this chapter assume that the file @file{hello.mix} contains the
+following example program: 
+
+@smallexample
+* ``HELLO, WORLD'' PROGRAM
+PRINTER EQU  18
+        ORIG 3000
+HELLO   OUT  TEXT(PRINTER)
+        JBUS *(PRINTER)
+        HLT
+TEXT    ALF  HELLO
+        ALF  , WOR
+        ALF  LD
+        END  HELLO  
+@end smallexample
+
+@menu
+* assembly::            Assembling @MIXAL{} Programs.
+* listing::             Obtaining a Program Listing.
+* raw output::          Generating a Raw Object Code.
+* mixal invocation::    A Summary of @code{mixal} Command Line Options.
+@end menu
+
+@node assembly
+@section Assembling @MIXAL{} Programs.
+@cindex assembling
+
+The simplest way to assemble a @MIXAL{} program is to give it as an
+argument to @command{mixal}:
+
+@smallexample
+$ mixal hello.mix
+@end smallexample
+
+@cindex deck
+@cindex card deck
+  The @command{mixal} utility assembles the program, and prints the
+resulting object code on the standard output. The object code is
+formatted as a @dfn{card deck}, as described in @TAOCP{1.3.1, 141,
+ex. 26}, therefore in this book we use the terms @dfn{object file}
+and @dfn{deck file} as synonyms.
+
+  Each line in the deck file corresponds to a single punch card. First
+two cards are always the same --- they contain a loader routine,
+responsible for loading of the entire deck into @MIX{} memory
+and passing control to the program entry point. The following lines,
+up to the last one, contain the program code, formatted as described
+in the following table:
+
+@multitable @columnfractions 0.4 0.6
+@headitem Column @tab Meaning
+@item 1--5 @tab Ignored.
+@item 6 @tab Number of consecutive words to be loaded on this card (between 1 and 7,
+inclusive).
+@item 7--10 @tab The location of word 1 (always greater than 100).
+@item 11--20 @tab Word 1.
+@item 21--30 @tab Word 2.
+@item 31--40 @tab Word 3.
+@item 41--50 @tab Word 4.
+@item 51--60 @tab Word 5.
+@item 61--70 @tab Word 6.
+@item 71--80 @tab Word 7.
+@end multitable
+
+  For example, the card:
+
+@smallexample  
+HELLO63000078721962107866953300000000133013558254406879733950219152384
+@end smallexample
+
+@noindent
+contains 6 words to be loaded starting from address 3000. These words are:
+
+@multitable @columnfractions 0.3 0.6
+@headitem Address @tab Word
+@item 3000 @tab 0787219621
+@item 3001 @tab 0786695330
+@item 3002 @tab 0000000133
+@item 3003 @tab 0135582544
+@item 3004 @tab 0687973395
+@item 3005 @tab 0219152384
+@end multitable
+
+  The deck ends with a special @dfn{transfer card}, which contains
+information in format @samp{TRANS0@var{nnnn}}, where @var{nnnn} is
+the address of the program entry point. For example, @samp{TRANS03000}
+means ``start execution from address 3000''.
+
+  To illustrate this, here is the deck file produced for
+@file{hello.mix} (the first two cards are omitted):
+
+@smallexample
+HELLO63000078721962107866953300000000133013558254406879733950219152384
+TRANS03000
+@end smallexample
+
+  The card deck, produced by @command{mixal} can be executed by the
+@MIX{} simulator, as described in @ref{mixsim}. In the simplest
+case, you can directly feed the deck to the standard input of
+@command{mixsim}:
+
+@smallexample
+$ mixal hello.mix | mixsim
+@end smallexample
+
+@anchor{mixal-output}
+@xopindex{output, description}
+@sopindex{o, description}
+  However, for more complex programs, it is common to store the
+produced card deck in a file for further use by @command{mixsim}.
+To do so, use @option{--output} (@option{-o}) command line option, as
+shown in the example below: 
+
+@smallexample
+$ mixal --output=hello.deck hello.mix
+@end smallexample
+
+@node listing
+@section Program Listing
+@xopindex{list}
+@sopindex{l}
+  To obtain more details about the generated object deck, use
+@option{--list} (@option{-l}) command line option. This option
+generates a @dfn{listing file}. The file name for this file is
+constructed by appending @file{.lst} suffix to the base name of the
+input file. For example, the following invocation will store the
+program listing in file @file{hello.lst}.
+
+@smallexample
+$ mixal -l hello.mix
+@end smallexample
+
+  If explicit input file is not given, e.g. when assembling the
+standard input, the listing is named @file{mixal.lst}. 
+
+@anchor{mixal-list-file}
+@xopindex{list-file}
+  These naming conventions can be overridden, by specifying the
+listing name explicitly, with @option{--list-file} option. This
+option implies @option{--list}, so you need not give the two options
+together. For example, the following invocation will store the
+listing in file @file{out/hello.list}:
+
+@smallexample
+$ mixal --list-file=out/hello.list hello.mix
+@end smallexample
+
+@cindex listing
+@cindex program listing
+  The program listing contains, for each line of the input source, the
+address of the corresponding @MIX{} cell and the assembled cell
+contents, as shown in the table below:
+
+@multitable @columnfractions 0.4 0.6
+@headitem Column @tab Meaning
+@item 1--4 @tab @MIX{} cell address.
+@item 5 @tab A semicolon
+@item 7--21 @tab Cell contents. 
+@item 23--27 @tab Source line number.
+@item 28 and others. @tab Source line.
+@end multitable
+
+The cell contents (columns 7--21) is formatted as described in
+@TAOCP{1.3.1, 124, Instruction format}:
+
+@multitable @columnfractions 0.4 0.6
+@headitem Column @tab Meaning
+@item 7 @tab Sign.
+@item 8-12 @tab Address part.
+@item 14--15 @tab @ifield{}.
+@item 17--18 @tab @ffield{}.
+@item 20--21 @tab Opcode.
+@end multitable
+
+  The following example shows @command{mixal} listing for the
+@file{hello.mix} program:
+
+@smallexample
+                          1 * ``HELLO, WORLD'' PROGRAM
+                          2 PRINTER    EQU  18
+                          3            ORIG 3000
+3000: + 3003  0 18 37     4 HELLO      OUT  TEXT(PRINTER)
+3001: + 3001  0 18 34     5            JBUS *(PRINTER)
+3002: +    0  0  2  5     6            HLT  
+3003: +  517 13 13 16     7 TEXT       ALF  HELLO
+3004: + 2624 26 16 19     8            ALF  , WOR
+3005: +  836  0  0  0     9            ALF  LD   
+                         10            END  HELLO
+@end smallexample
+
+
+@cindex Symbol listing
+  After the listing comes a @dfn{symbol table}, which, for each symbol
+used in the program, shows its name, location and a source line, where
+it was defined. For example:  
+  
+@smallexample
+Symbol     Value  Line  
+PRINTER       18    2   
+HELLO       3000    4   
+TEXT        3003    7   
+@end smallexample
+
+  The @samp{Value} column contains a @MIX{} location, corresponding
+to that symbol, except in case of macro-definitions (@code{EQU}),
+where the actual value of the macro is printed (see @samp{PRINTER} in
+the example above).
+
+  The symbol table contains not only user-defined symbols, but also
+any literals and local labels used in the program. For literals, the
+@samp{Symbol} column contains their computed @i{w-expressions},
+surrounded by equals sings. For example, the line
+
+@smallexample
+        MUL  =2*25+1=
+@end smallexample
+
+@noindent
+will produce the symbol name @samp{=51=}, e.g.:
+
+@smallexample
+Symbol     Value  Line  
+=51=        1101   18
+@end smallexample
+
+  Local labels are displayed as two integer numbers,
+separated by a dash and surrounded by vertical bars (@samp{|}). The
+first number corresponds to the number of the local label, the second
+one means its ordinal number in the program text. For example, the
+@MIXAL{} fragment below:
+
+@smallexample
+1H      INCX 0
+        DECA 11
+        JANP 1B
+1H      INCX 1
+@end smallexample
+
+@noindent
+will produce the following two entries in the symbol table:
+
+@smallexample
+Symbol     Value  Line  
+|1-1|       1026    7
+|1-2|       1029   10
+@end smallexample
+
+@anchor{mixal-xref}
+@cindex cross-reference
+@xopindex{xref, description}
+@xopindex{cross-reference, description}
+@sopindex{x, description}
+  An additional statistics about the input source can be obtained
+using @option{--xref} (@option{-x}) option, which instructs
+@command{mixal} to print a cross-reference table of all used symbols.
+A @dfn{cross-reference table} is added as an additional column to the
+symbol table, described above. The contents of this column lists the
+lines where the symbol was referenced. The following example
+shows a cross-reference table for the @file{hello.mix} program:
+
+@smallexample
+Symbol     Value  Line  Referenced on line
+PRINTER       18    2    4    5
+HELLO       3000    4   10
+TEXT        3003    7    4
+@end smallexample
+
+  If @option{--xref} is used without @option{--list} (or
+@option{--list-file}), the symbol table is printed on the standard error.
+
+@node raw output
+@section Raw Object Code.
+@cindex raw object output
+@xopindex{raw-output}
+@sopindex{r}
+  Sometimes you may need to assemble a @MIXAL{} program into a raw
+sequence of bytes, without composing a proper load deck. In
+particular, this becomes necessary if you wish to develop your own
+loading routine. The @option{--raw-output} (@option{-r}) allows you to
+do that. When called with this option, @command{mixal} outputs
+assembled code as is, without converting it to object card format and
+without prefixing it with loader routine. Currently this option
+assumes that the produced code will be read using device 16 (card
+reader), so the output byte stream is formatted in blocks of 16 words
+(80 bytes) delimited by newlines.
+
+  A particularly interesting implementation of this feature would be
+to produce a loader code for another type of input device, e.g. to load
+programs from magnetic tapes or disks. This, however, requires some
+further work on @command{mixsim} and will be implemented in future
+versions of the package.
+
+@node mixal invocation
+@section @command{mixal} option summary.
+
+@smallexample
+@group
+@r{Usage:}
+mixal [@var{options}] [@var{file}]
+@end group
+@end smallexample
+
+The following table summarizes the available command line options:
+
+@table @option
+@opsummary{list}
+@item --list
+@itemx -l
+Produce a source listing. Unless @option{--list-file} (see below) is
+used, the default listing file name is constructed by appending
+@file{.lst} suffix to the base name of the input file. If standard
+input is used, the listing file is named @file{mixal.lst}. 
+
+@xref{listing}.
+
+@opsummary{list-file}
+@item --list-file=@var{file}
+Set listing file name. Implies @option{--list}. 
+
+@xref{mixal-list-file}.
+
+@opsummary{force}
+@item --force 
+@itemx -f
+Force generating object deck (and, eventually, listing) even if there were
+errors during assembly.
+
+@opsummary{output}
+@item --output=@var{file}
+@itemx -o
+Set output file name. By default, object deck is printed on the
+standard output.
+
+@xref{mixal-output}.
+
+@opsummary{raw-output}
+@item --raw-output
+@itemx -r
+Produce raw object output.
+
+@xref{raw output}.
+
+@opsummary{xref}
+@item --xref
+@opsummary{cross-reference}
+@itemx --cross-reference
+@itemx -x
+Output a cross reference.
+
+@xref{mixal-xref}.
+
+@opsummary{debug-gram}
+@item --debug-gram
+Enable parser debugging output.
+
+@opsummary{debug-lex}
+@item --debug-lex
+Enable lexical analyzer debugging output.
+
+@item -d @var{level}
+Set debug level. This option is for compatibility with previous
+versions. The @option{-dy} option is equivalent to
+@option{--debug-gram}, @option{-dl} is equivalent to
+@option{--debug-lex}, @option{-dyl} (or @option{-dly}) is equivalent
+to both. 
+
+@opsummary{help}
+@item --help
+@itemx -h
+Print a concise help summary.
+
+@opsummary{version}
+@item --version
+@itemx -V
+Print program version and license information.
+@end table
+
+@node mixsim, mixrun, mixal, Top
+@chapter @command{mixsim} -- @MIX{} Simulator.
+@pindex mixsim
+@cindex simulator
+@cindex @MIX{} simulator
+  The @MIX{} simulator, @command{mixsim}, allows you to execute object
+code assembled by @command{mixal}, and to inspect the machine state
+at any stage of the execution. The simulator also includes a debugging
+facility, useful when analyzing the examples and solving problems from
+@acronym{TAOCP}.
+
+  The simulator is written in compliance with the recommendations found
+in @TAOCP{1.4.3.1, 198, @MIX{} Simulator}.
+  
+@menu
+* machine::             A @MIX{} Machine Implementation.
+* exec::                Executing @MIX{} Programs.
+* terminal::            Terminal Mode and Debugger.
+* command files::       Command Files.
+* mixsim invocation::
+@end menu
+
+@node machine
+@section A @MIX{} Machine Implementation.
+@cindex implementation, @MIX{} machine
+  The simulator implements the @MIX{} machine as described in
+@TAOCP{1.3.1, 120, Description of @MIX{}}. The machine is shipped
+with all external equipment, except the paper tape unit@footnote{It
+will be implemented in future releases}, and the floating point feature.
+
+  Each @acronym{I/O} device is bound to a particular @acronym{UNIX} file.
+By default the card reader is connected to stdin, the printer to
+stdout and the card punch to stderr. The typewriter is connected to
+stdin. The paper tape unit is not yet implemented.
+
+  The tape units use files @file{tape0} to @file{tape7} and the disk
+units use files @file{disk0} to @file{disk8} in the current directory.
+None of these files is required to exist: they will be created on
+demand, when the first output operation on the given unit takes place.
+
+  The disks are always opened for update without truncation, so that old
+data is not destroyed until it is overwritten. Note that big disk
+files will never shrink unless they are deleted.
+
+  In contrast, the tapes are always opened with truncation, so that
+any existing data is lost after the first @code{OUT} instruction is
+executed.
+
+@node exec
+@section Executing @MIX{} Programs.
+@cindex running @command{mixsim}
+@cindex @command{mixsim}, running
+@cindex executing @MIX{} programs
+  When run without command line options, @command{mixsim} reads a load
+deck from device 16, loads and executes it, writing any error messages
+to stderr. On completion, a dump of the machine state is written to
+stderr. If @command{mixsim} is interrupted during execution, the
+machine state will be dumped to stderr.
+
+  At most one argument can be given. It is treated as a file name to
+be assigned to the card reader device. Thus, there are three ways to
+execute a load deck previously stored in a file:
+
+@enumerate a
+@item
+Redirect the file's contents to the @command{mixsim} stdin:
+
+@smallexample
+$ mixsim < hello.deck
+@end smallexample
+
+@item
+Give the file name as an argument to @command{mixsim}:
+
+@smallexample
+$ mixsim hello.deck
+@end smallexample
+
+@item
+Assign the file to device @samp{#16}, using @option{-a} option (see
+below):
+
+@smallexample
+$ mixsim -a 16=hello.deck
+@end smallexample
+@end enumerate
+
+@xopindex{assign-device, description}
+@sopindex{a, description}
+@cindex assigning files to devices
+@cindex devices, assigning files to
+@cindex devices, binding
+  The default device assignments can be changed using
+@option{--assign-device} (@option{-a}) command line option. It takes a
+single argument in the form @var{dev}=@var{file}, where @var{dev} is
+the @MIX{} device number and @var{file} is the name of file to be
+assigned to it. For example, the following invocation tells
+@command{mixsim} to connect the card puncher (device 17) to file
+@file{punch.out}:
+
+@smallexample
+$ mixsim --assign 17=punch.out
+@end smallexample
+
+@node terminal
+@section Terminal Mode and Debugger.
+@cindex terminal mode, @command{mixsim}
+@xopindex{terminal, description}
+@sopindex{t, description}
+  When given the @option{--terminal} (@option{-t}) option,
+@command{mixsim} starts in @dfn{terminal mode}. The terminal mode
+provides a custom shell for executing, tracing and debugging @MIX{}
+programs. When you start @command{mixsim} in this mode, you will see:
+
+@smallexample
+@group
+$ mixsim -t
+
+MIX TERMINAL STATION READY FOR COMMUNICATION
+
+MIX> _
+@end group
+@end smallexample
+
+  The @samp{MIX>} string at the end of the screen is the @dfn{terminal
+prompt}, inviting you to enter a command. The syntax of terminal
+commands is similar to that of shell: each command consists of a
+@dfn{command verb}, optionally followed by one or more
+@dfn{arguments}, separated by any amount of whitespace. A command ends
+with a newline character.
+
+@menu
+* commands::            Mixsim Commands.
+* help::                Obtaining On-line Help.
+* quitting::            Quitting the Terminal.
+* devices::             Assigning and Listing Devices.
+* running::             Running a Program.
+* breakpoints::         Breakpoints.
+* stopping::            Stopping and Continuing.
+* shell commands::      Executing Shell Commands.
+* data::                Examining Data and Registers.
+* command summary::     A Summary of Terminal Commands.
+@end menu
+
+@node commands
+@subsection Mixsim Commands
+
+  All @command{mixsim} command verbs (hereinafter referred to as
+@dfn{commands}) are case-insensitive. Each command has a full
+and contracted form, the latter one being designed to save extra
+typing.
+
+  If the package is configured with @command{readline} support enabled
+(which is the default, if @command{readline} is present on the system),
+you can abbreviate a command to the first few letters of the
+command name, if that abbreviation is unambiguous. A flexible command
+line editing facility is also available in this
+case. @xref{completion}, for a detailed desctiption.
+
+  You can test if an abbreviation is valid by using it as an argument
+to the @command{help} command (@pxref{help}).
+
+  A blank line as input to GDB (typing just @kbd{RET}) means to repeat
+the previous command.
+
+  Any text from a @samp{#} to the end of the line is a comment; it is ignored.
+This is useful mainly in command files (@pxref{command files}).
+
+@menu
+* completion::          Command Completion.
+@end menu
+
+@node completion
+@subsubsection Command Completion
+
+This subsection discusses the command completion facility, available
+if @command{mix} is configured with @command{readline} support. Using
+this feature is recommended. If you don't have GNU @command{readline},
+we suggest you to get it from the
+@uref{http://cnswww.cns.cwru.edu/php/chet/readline/rltop.html,
+Readline Home Page} prior to compiling @command{mix}.
+
+@xref{Command Line Editing, Command Line Editing,
+Command Line Editing, readline, GNU Readline Library}, for more
+information about the library.
+
+@command{Mixsim} can fill in the rest of a word in a command for you,
+if there is only one possibility; it can also show you what the valid
+possibilities are for the next word in a command, at any time.
+
+ Press the @kbd{TAB} key whenever you want @command{mixsim} to fill
+out the rest of a word for you. If there is only one possibility, it
+will replace the partial word and will wait for you
+to finish the command. This @dfn{command completion} is
+context-dependent. For example, if you type:
+
+@smallexample
+MIX> br_@kbd{TAB}
+@end smallexample
+
+@noindent
+this command will immediately be expanded to @code{break}, since it is
+the only possibility in this context:
+
+@smallexample
+MIX> break
+@end smallexample
+
+If there is more than one possibility to complete the word you are
+typing, @command{mixsim} rings a bell. You can either supply more
+characters and try again, or just press @kbd{TAB} one more time, in
+which case @command{mixsim} will display all the possible completions
+for that word. For example, the @code{address} command
+(@pxref{breakpoints}) can be followed by several keywords, so, if you
+type @kbd{TAB} after @code{address}, @command{mixsim} rings a bell and
+waits for your further actions. If you press @kbd{TAB} second time,
+you'll see:
+
+@smallexample
+@group
+MIX> ADDRESS _@kbd{TAB}
+@r{A bell sounds. Pess @kbd{TAB} again to see:}
+CB         DELETE     ENABLE     INFO       LIST
+CLEAR      DISABLE    IGNORE     LB         PASSCOUNT
+MIX> ADDRESS _
+@end group
+@end smallexample
+
+  To save you typing, it is also possible to view the list of
+alternatives in the first place. To do so, type @kbd{M-?}, instead of
+pressing @kbd{TAB} twice. @kbd{M-?} means either to hold down a key designated
+as the @kbd{META} shift on your keyboard (if there is one) while typing
+@kbd{?}, or to press @kbd{ESC}, followed by @kbd{?}.
+
+  If the context requires you to type a file name, @command{mixsim}
+will complete file names. For example:
+
+@smallexample
+MIX> ASGN 16 ../examples/_@kbd{M-?}
+mystery.mix    hello.mix      init.mix       p.mix
+easter.mix     load.mix       tsort.mix
+@end smallexample
+
+ Similarly, if the context requires a name of an executable file, you
+will see the appropriate completion, made using your @env{PATH}
+environment variable setting:
+
+@smallexample
+MIX> ! ca_@kbd{TAB} @kbd{TAB}
+cat             cal
+@end smallexample
+
+@node help
+@subsection Obtaining On-line Help
+@table @code
+@kwindex HELP
+@item HELP
+@itemx ?
+  To obtain help about all available commands, type @code{HELP}.
+
+@item HELP @var{cmd}
+@itemx ? @var{cmd}
+  When used with an argument, it displays usage summary for the given command
+verb, e.g.:
+
+@smallexample
+MIX> HELP ASGN   
+ASGN <DEVICE> <FILE>
+@end smallexample
+@end table
+
+@node quitting
+@subsection Quitting the Terminal
+@table @code
+@kwindex QUIT
+@item QUIT
+@itemx Q
+  To exit the terminal, use the @code{QUIT} (abbreviated @code{Q}), or
+type an end-of-file character (usually @kbd{C-d}).
+@end table
+
+  An interrupt (@kbd{C-c}) does not exit from @command{mixsim}, but
+rather stops the program being executed (@pxref{stopping}),
+or, if no program is being run, cancels the current input line.
+
+@node devices
+@subsection Assigning and Listing Devices
+@table @code
+@kwindex ASGN
+@item ASGN @var{device} @var{file}
+@itemx A @var{device} @var{file}
+  Assign @var{file} to the given @MIX{} device. @var{device}
+specifies the device number. In the effect of this command,
+output operations on @var{device} will write the data to @var{file},
+and input operations on @var{device} will read data from @var{file}.
+@end table
+
+  For example, to assign file @file{hello.deck} to the card reader,
+type:
+
+@smallexample
+MIX> ASGN 16 hello.deck
+@end smallexample
+
+  To obtain information about @MIX{} devices, including their current
+assignments, use the following command:
+
+@table @code
+@kwindex INFO IO
+@kwindex LIST IO
+@item INFO IO [@var{device}]
+@itemx LIST IO [@var{device}]
+@itemx LI [@var{device}]
+  Without arguments, lists all devices. With a numeric argument, shows
+information about that particular device. For more uses of @code{INFO}
+command, see @ref{list breakpoints}.
+@end table
+
+  The information is displayed in tabular form and contains the
+following columns:
+
+@table @asis
+@item UNIT
+Unit number.
+@item IOT
+@acronym{I/O} time per block.
+@item SKT
+Seek time.
+@item ADDR
+Memory address for the pending @acronym{I/O} operation. 
+@item POS
+Device position for the pending @acronym{I/O} operation. This column
+is meaningful only for tape and disk devices.
+@item OP
+Opcode or @samp{N/A}, if no operation is pending.
+@item CLOCK
+Clock time when the @acronym{I/O} will occur. To examine the current
+clock time, see @ref{list breakpoints}.
+@item ASGN
+File assigned to that device.
+@end table
+
+  The example below shows the information about card reader, obtained
+after the first loader card was read:
+
+@smallexample
+MIX> info io 16
+UNIT    IOT    SKT  ADDR  POS   OP  CLOCK ASGN
+  16  10000      0    16    0   IN  15000 easter.obj
+@end smallexample
+
+@node running
+@subsection Running a Program
+@table @code
+@kwindex GO
+@kwindex RUN
+@item GO
+@itemx G
+@itemx RUN
+@itemx R
+  Emulates @MIX{} @acronym{GO} button.
+@end table
+
+  This command does the following:
+
+@enumerate a
+@item A single card is read into locations @samp{0000--0015};
+@item When the card has been completely read and the card reader is no
+longer busy, a @code{JMP} to location @samp{0000} occurs. The
+@acronym{J}-register is also set to 0.
+@end enumerate
+
+@node breakpoints
+@subsection Breakpoints
+@cindex breakpoint
+  A @dfn{breakpoint} makes your program stop whenever a certain location
+in the program is reached. When the program stops at a breakpoint we
+say that this breakpoint has been @dfn{passed} or @dfn{hit}.
+
+  For each breakpoint, two numbers are defined: @dfn{ignore count},
+which specifies the number of passes before that breakpoint is enabled,
+and @dfn{pass count}, which specifies the number of passes after which
+the breakpoint will be deleted.
+
+@kwindex ADDRESS
+@cindex breakpoint number
+@cindex addressing breakpoints
+@cindex breakpoints, referring to
+  Each created breakpoint is assigned a @dfn{sequence number}, which
+can be used to refer to that breakpoint in other commands. Another way
+to refer to a breakpoint is by the program location it is set
+at. Thus, each command described in this subsection has two forms: a
+form which uses breakpoint numbers, and a form that uses program
+locations. The second form is constructed by prefixing the command
+with @code{ADDRESS} keyword (abbreviated @code{AD}). For example, the
+following command deletes breakpoint number 2 (@pxref{delete breakpoints}):
+
+@smallexample
+MIX> DELETE 2
+@end smallexample
+
+@noindent
+In contrast, the following command deletes all breakpoints set at
+address 1000: 
+
+@smallexample
+MIX> ADDRESS DELETE 1000
+@end smallexample
+
+@menu
+* set breakpoints::
+* delete breakpoints::
+* disable breakpoints::
+* configure breakpoints::
+* list breakpoints::
+@end menu
+
+@node set breakpoints
+@subsubsection Setting Breakpoints
+
+  Breakpoints are set with the @code{BREAK} command (abbreviated
+@code{B}).
+  
+@table @code
+@kwindex BREAK
+@kwindex B 
+@item BREAK @var{location}
+@itemx B @var{location}
+  Set a breakpoint at the given @var{location}. Both ignore and pass
+counts are set to 0. A sequence number assigned to the breakpoint is
+displayed, as shown in the example below:
+
+@smallexample
+MIX> BR 1000
+BREAKPOINT 1 IS SET AT ADDRESS 1000
+@end smallexample
+
+  This sequence number can then be used to refer to this breakpoint.
+
+@kwindex BREAK TEMP
+@kwindex BT
+@kwindex TB
+@item BREAK TEMP @var{location}
+@itemx BT @var{location}
+@itemx TB @var{location}
+  Sets a temporary breakpoint at the given @var{location}. A
+@dfn{temporary breakpoint} is a breakpoint which is deleted after
+a single hit. In other words, it has pass count set to 1.
+
+  This command is equivalent to:
+
+@smallexample
+BREAK @var{location}
+ADDRESS PASSCOUNT @var{location} 1
+@end smallexample
+
+@xref{configure breakpoints}, for information about @code{PASSCOUNT} command.
+@end table
+
+  You can set any number of breakpoints at the same place in your
+program. This feature is not very useful at the moment, it is reserved
+for future use.
+
+@node delete breakpoints
+@subsubsection Deleting Breakpoints
+
+  It is often necessary to eliminate a breakpoint which has done its
+job and is no longer needed. This is called @dfn{deleting} the
+breakpoint. A deleted breakpoint no longer exists, and its sequence
+number is returned to the pool of available numbers.
+
+  It is not necessary to delete a breakpoint to proceed past
+it. @command{Mixsim} automatically ignores breakpoints on the first
+instruction to be executed when you continue execution without
+changing the execution address.
+   
+@table @code
+@kwindex DELETE 
+@kwindex D 
+@item DELETE [@var{number-list}]
+@itemx D [@var{number-list}]
+  Delete specified breakpoints. @var{number-list} is a
+whitespace-separated list of breakpoint numbers. If no argument is
+specified, delete all breakpoints (in this case @command{mixsim} asks
+confirmation).  
+
+  When prefixed with @code{ADDRESS} (abbreviated @code{AD}),
+@var{number-list} is treated as a list of addresses, instead of
+breakpoint numbers.
+@end table
+
+  Examples:
+
+@enumerate 1
+@item Delete all breakpoints:
+@smallexample
+MIX> DELETE
+@end smallexample
+
+@item Delete breakpoints 1, 3 and 5:
+@smallexample
+MIX> DELETE 1 3 5
+@end smallexample
+
+@item Delete breakpoints set at addresses 1000 and 3000:
+@smallexample
+MIX> ADDRESS DELETE 1000 3000
+@end smallexample
+@end enumerate
+
+@node disable breakpoints
+@subsubsection Disabling and Enabling Breakpoints
+
+Instead of deleting a breakpoint, you might prefer to @dfn{disable}
+it. A disabled breakpoint continues to exist, but is ignored. You may
+enable it again later, if the need arises.
+
+To disable and enable breakpoints, use @code{ENABLE} and
+@code{DISABLE} commands, described below. To obtain information about
+existing breakpoints and their status, use @code{INFO BREAK} command
+(@pxref{list breakpoints}).
+
+@table @code
+@kwindex DISABLE
+@kwindex DIS 
+@item DISABLE [@var{number-list}]
+@itemx DIS [@var{number-list}]
+Disable breakpoints, specified by @var{number-list}. If no arguments
+are given, disables all breakpoints.
+
+@kwindex ENABLE
+@kwindex ENA 
+@item ENABLE @var{number-list}
+@itemx ENA @var{number-list}
+Enable breakpoints, specified by @var{number-list}. If no arguments
+are given, enables all breakpoints.
+@end table
+
+Both commands may be prefixed with @code{ADDRESS} (abbreviated
+@code{AD}), to specify breakpoints by @MIX{} addresses, rather than by
+breakpoint numbers.
+
+@node configure breakpoints
+@subsubsection Configure Breakpoints
+
+  Each breakpoint has two numbers associated with it:
+@dfn{ignore count}, which specifies the number of passes before that
+breakpoint is enabled, and @dfn{pass count}, which specifies the
+number of passes after which the breakpoint will be deleted.
+
+@table @code
+@kwindex IGNORE
+@kwindex I
+@item IGNORE @var{number} @var{count}
+@itemx I @var{number} @var{count}
+Set ignore count for breakpoint @var{number} to @var{count}.
+
+@kwindex PASSCOUNT
+@kwindex P
+@item PASSCOUNT @var{number} @var{count}
+@itemx P @var{number} @var{count}
+Set pass count for breakpoint @var{number} to @var{count}.
+@end table
+
+Both commands may be prefixed with @code{ADDRESS} (abbreviated
+@code{AD}), in which case their first argument, @var{n}, is treated
+as a @MIX{} location where the breakpoint is set, rather than its
+number. For example, the following command sets pass count to 1 for all
+breakpoints set at location 1000:
+
+@smallexample
+MIX> ADDRESS PASSCOUNT 1000 1
+@end smallexample
+
+@node list breakpoints
+@subsubsection Listing Breakpoints
+
+@table @code
+@kwindex INFO BREAK
+@item INFO BREAK [@var{num}]
+@itemx LIST BREAK [@var{num}]
+@itemx LB [@var{num}]
+Without argument, lists all existing breakpoints. With an argument,
+lists only breakpoint @var{num}. When prefixed with @code{ADDRESS}
+(abbreviated @code{AD}), treats its argument as a @MIX{} location
+and lists breakpoints set at that location.
+@end table
+
+Following is an example of a breakpoint listing:
+
+@smallexample
+ NUM  LOC  ENB  CNT  IGN  PAS
+   1 1000    Y    1    0    0
+   2 1040    N   10    8    0
+   3 1230    Y    0    0    1
+@end smallexample
+
+The columns and their meanings are:
+
+@multitable @columnfractions 0.3 0.6
+@headitem Column @tab Meaning
+@item NUM @tab Breakpoint number.
+@item LOC @tab Location.
+@item ENB @tab Is the breakpoint enabled or not.
+@item CNT @tab Number of passes registered this far.
+@item IGN @tab Ignore count.
+@item PAS @tab Pass count.
+@end multitable
+
+@node stopping
+@subsection Stopping and Continuing
+
+The principal purposes of using a debugger are so that you can stop
+your program before it terminates; or so that, if your program runs
+into trouble, you can investigate and find out why.
+
+Inside @command{mixsim} a program may stop either because it hit an
+active breakpoint or because it reached a new line after @code{NEXT}
+or @code{STEP} command (see below). Additionally, you can stop a
+running program at any moment, by pressing @i{interrupt} (usually
+@kbd{C-c}).  
+
+@table @code
+@kwindex CONTINUE
+@kwindex C
+@item CONTINUE
+@itemx C
+Continue program execution, at the address where it last stopped.
+@end table
+
+A typical debugging technique is to set a breakpoint (@pxref{set
+breakpoints}) at the location where a problem is believed to lie, run
+your program until it stops at that breakpoint, and then step through
+the suspect area, examining the variables that are interesting, until
+you see the problem happen.
+
+The following two commands are useful with this technique.
+   
+@table @code
+@kwindex NEXT
+@item NEXT [@var{count}]
+@itemx N [@var{count}]
+Execute next instruction and stop again. With an argument, execute
+next @var{count} instructions. If any of the executed instructions is
+a function call, that function is not descended into. 
+
+@kwindex STEP
+@item STEP [@var{count}]
+@itemx S [@var{count}]
+Execute next instruction and stop again. If the instruction is a
+function call, descend into that function. With an argument, execute
+next @var{count} instructions.
+@end table
+
+@node shell commands
+@subsection Executing Shell Commands.
+
+@table @code
+@kwindex SHELL
+@kwindex !
+@item SHELL [@var{command}]
+@itemx ! [@var{command}]
+Execute given shell command, by running @command{/bin/sh -c @var{command}}.
+For example, to see the listing of the current working directory, do:
+
+@smallexample
+MIX> ! ls -l
+@end smallexample
+
+@noindent
+If no arguments are supplied, execute a subordinate shell.
+@end table
+
+@node data
+@subsection Examining Data and Registers
+
+@table @code
+@kwindex DUMP
+@item DUMP
+@itemx DU
+Dump @MIX{} registers and memory contents. The output format is
+described below.
+
+@kwindex DUMP MEMORY
+@item DUMP MEMORY [@var{from} [@var{to}]]
+@itemx DM [@var{from} [@var{to}]]
+Dump @MIX{} memory. When used without arguments, dumps entire address
+space. When used with one argument, dumps the memory contents starting
+from location @var{from}. When used with two arguments, dumps the
+contents of memory between the locations @var{from} and @var{to},
+inclusive. Both locations are rounded to the nearest word boundary.
+
+The output is formatted in blocks, each one containing 5 machine
+words. Each block is preceded by the location of its first word.
+Each word is printed in three forms, located in rows. The first row is
+the decimal value of the word, the second row is its representation in
+instruction format (@TAOCP{1.3.1, 124, Instruction format}), and the
+last one gives its printable representation. For example, the words
+@samp{3000--3004} of @file{hello.mix} code look as follows:
+
+@smallexample
+@group
+3000 +0000787219621 +0000786695330 +0000000000133 
+     +3003 00 18 37 +3001 00 18 34 +0000 00 02 05 
+     '*d Q7'        '*b Q4'        '   BE'
+
+     +0000135582544 +0000687973395
+     +0517 13 13 16 +2624 26 16 19
+     'HELLO'        ', WOR'
+@end group     
+@end smallexample
+
+@noindent
+The above example is split in two groups due to printing restrictions.
+
+If several blocks of memory contain the same data, only first of them
+is displayed, the rest being replaced by a message, similar to the
+following:
+
+@smallexample
+    Lines 3015 to 3995 are the same.
+@end smallexample
+
+@kwindex DUMP REGISTERS
+@item DUMP REGISTERS
+@itemx DR
+Dump contents of @MIX{} registers. The following example illustrates
+the output format:
+@end table
+
+@smallexample
+Registers A/X    +00000000000 +00041363636
+                 +          0 +    8775582
+
+Index Registers  +00000  +00000  +05670  +00000  +00000  +00000
+                 +    0  +    0  + 3000  +    0  +    0  +    0
+
+Jump Register    +00015     Overflow toggle:      OFF
+                 +   13     Comparison Indicator: EQUAL
+
+Clock = 262436 u. Location = 3001, M 3003, I 0, F 18, C 37,
+inst = + 5673002245
+@end smallexample
+
+@table @code
+@kwindex DISASSEMBLE
+@kwindex UNASM
+@kwindex U
+@item DISASSEMBLE [@var{from} [@var{to}]]
+@itemx UNASM [@var{from} [@var{to}]]
+@itemx U [@var{from} [@var{to}]]
+Dump a range of memory @var{from}--@var{to} as @MIX{}
+instructions. If @var{to} is not given, disassemble first five words
+starting at @var{from}. If no arguments are given, disassemble first
+five words starting from the current instruction pointer:
+
+@smallexample
+MIX> disassemble 0
+0       IN    16(16)
+1       IN    29(16)
+2       LD1   0(0:0)
+3       JBUS  *(16)
+4       LDA   30
+@end smallexample
+
+@end table
+
+@node command summary
+@subsection A Summary of Terminal Commands.
+
+For convenience, this section lists all available terminal commands in
+alphabetical order, along with a short description and a reference to
+their detailed description.
+
+@deffn {Terminal Command} ADDRESS @var{breakpoint-command}
+@var{breakpoint-command} is any of the following commands with
+appropriate arguments: @code{DELETE}, @code{ENABLE}, @code{INFO
+BREAK}, @code{DISABLE}, @code{IGNORE}, @code{PASSCOUNT}.
+
+The @code{ADDRESS} prefix makes @var{breakpoint-command} to refer to
+breakpoints using memory locations they are set as, rather than
+breakpoint numbers. @xref{breakpoints, ADDRESS prefix}. 
+@end deffn
+
+@deffn {Terminal Command} ASGN @var{device} @var{file}
+Assign @var{file} to the given @MIX{} device.
+
+@xref{devices}.
+@end deffn
+
+@deffn {Terminal Command} BREAK [TEMP] @var{location}
+Set a breakpoint at the given @var{location}. If @code{TEMP} is given,
+set a temporary breakpoint, active for one pass only.
+
+@xref{breakpoints}.
+@end deffn
+ 
+@deffn {Terminal Command} BT @var{location-list}
+@deffnx {Terminal Command} TB @var{location-list}
+Shortcut for @code{BREAK TEMP}.
+@end deffn
+
+@deffn {Terminal Command} DELETE [@var{num-list}]
+Delete specified breakpoints. @var{num-list} is a list of breakpoint
+numbers or, if @code{ADDRESS} prefix is used, their addresses.
+Without arguments, delete all breakpoints.
+
+@xref{delete breakpoints}.
+@end deffn
+
+@deffn {Terminal Command} CONTINUE
+@deffnx {Terminal Command} C
+Continue program execution, at the address where it last stopped.
+
+@xref{stopping}.
+@end deffn
+
+@deffn {Terminal Command} DISABLE [@var{num-list}]
+Disable breakpoints. @var{num-list} is a list of breakpoint
+numbers or, if @code{ADDRESS} prefix is used, their addresses.
+Without arguments, disable all breakpoints.
+
+@xref{disable breakpoints}.
+@end deffn
+
+@deffn {Terminal Command} DISASSEMBLE [@var{from} [@var{to}]]
+@deffnx {Terminal Command} UNASM [@var{from} [@var{to}]]
+@deffnx {Terminal Command} U [@var{from} [@var{to}]]
+Dump a range of memory as @MIX{} instructions.
+
+@xref{data, DISASSEMBLE}.
+@end deffn
+
+@deffn {Terminal Command} DUMP 
+@deffnx {Terminal Command} DU
+Dump @MIX{} registers and memory contents.
+
+@xref{data}.
+@end deffn
+
+@deffn {Terminal Command} DUMP REGISTERS
+@deffnx {Terminal Command} DR
+Dump contents of @MIX{} registers.
+
+@xref{data, DUMP REGISTERS}.
+@end deffn
+
+@deffn {Terminal Command} DUMP MEMORY [@var{from} [@var{to}]]
+@deffnx {Terminal Command} DM [@var{from} [@var{to}]]
+Dump @MIX{} memory.
+
+@xref{data, DUMP MEMORY}.
+@end deffn
+
+@deffn {Terminal Command} ENABLE [@var{num-list}]
+Enable breakpoints. @var{num-list} is a list of breakpoint
+numbers or, if @code{ADDRESS} prefix is used, their addresses.
+Without arguments, enable all breakpoints.
+
+@xref{disable breakpoints, ENABLE}.
+@end deffn
+
+@deffn {Terminal Command} GO
+@deffnx {Terminal Command} RUN
+Run a program. @xref{running}.
+@end deffn
+
+@deffn {Terminal Command} HELP [@var{command-verb}]
+@deffnx {Terminal Command} ? [@var{command-verb}]
+Display a short usage summary about @var{command-verb}. Without
+arguments, display all available commands.
+
+@xref{help}.
+@end deffn
+
+@deffn {Terminal Command} IGNORE @var{number} @var{count}
+Set ignore count for breakpoint @var{number} to @var{count}.
+@var{number} is a breakpoint number or, if @code{ADDRESS} prefix is
+used, its address.
+
+@xref{configure breakpoints, IGNORE}.
+@end deffn
+
+@deffn {Terminal Command} INFO BREAK [@var{num}]
+@deffnx {Terminal Command} LIST BREAK [@var{num}]
+@deffnx {Terminal Command} LB [@var{num}]
+Without argument, lists all existing breakpoints. With an argument,
+lists only breakpoint @var{num}. May be prefixed with @code{ADDRESS}
+to use breakpoint address instead of number.
+
+@xref{list breakpoints}.
+@end deffn
+
+@deffn {Terminal Command} INFO IO [@var{num}]
+@deffnx {Terminal Command} LIST IO [@var{num}]
+@deffnx {Terminal Command} LI [@var{num}]
+Without arguments, list all devices. With a numeric argument, show
+information about that particular device.
+
+@xref{devices, INFO IO}.
+@end deffn
+
+@deffn {Terminal Command} NEXT [@var{count}]
+Execute next @var{count} (default is 1) instructions and stop again.
+
+@xref{stopping, NEXT}.
+@end deffn
+
+@deffn {Terminal Command} PASSCOUNT @var{number} @var{count}
+Set pass count for breakpoint @var{number} to @var{count}.
+
+@var{number} is a breakpoint number or, if @code{ADDRESS} prefix is
+used, its address.
+
+@xref{configure breakpoints, PASSCOUNT}.
+@end deffn
+
+@deffn {Terminal Command} SOURCE @var{filename}
+@deffnx {Terminal Command} SO @var{filename}
+Execute the command file @var{filename}.
+
+@xref{command files}, for more information about command files and
+their execution.
+@end deffn
+
+@deffn {Terminal Command} QUIT
+Quit the terminal. @xref{quitting}.
+@end deffn
+
+@deffn {Terminal Command} SHELL [@var{command}]
+@deffnx {Terminal Command} ? [@var{command}]
+Execute given shell command. @xref{shell commands}.
+@end deffn
+
+@deffn {Terminal Command} STEP [@var{count}]
+Execute next @var{count} (default is 1) instructions and stop
+again. If a function call is encountered, descend into the function.
+
+@xref{stopping, STEP}.
+@end deffn
+
+@node command files
+@section Command Files
+@cindex command file
+  A @dfn{command file} is a file containing @command{mixsim} commands,
+one per line. Comments (lines starting with @samp{#}) and empty lines
+are also allowed. An empty line in a command file does nothing; it
+does not mean to repeat the last command, as it would from the terminal.
+
+  Command files are useful to store sequences of @command{mixsim}
+commands for executing them later. There are two ways to execute a
+command file: explicit, by using @code{SOURCE} command, or implicit,
+by naming the file @file{.mixsim} and storing it in the current
+working directory.
+
+@anchor{mixsim-source}
+@table @code
+@kwindex SOURCE
+@item SOURCE @var{filename}
+@itemx SO @var{filename}
+Execute the command file @var{filename}.
+@end table
+
+  The lines in a command file are executed sequentially.  They are
+not printed as they are executed.  An error in any command terminates
+execution of the command file and control is returned to the console.
+However, any @command{mixsim} command that prints a diagnostic message
+saying what it is doing, continues to do so even when called from a
+command file.
+
+  Commands that would ask for confirmation if used interactively
+proceed without asking, as if an affirmative answer was obtained.
+
+@cindex startup file
+@cindex @file{.mixsim}
+  When started in terminal mode (@pxref{terminal}), @command{mixsim}
+searches for file named @file{.mixsim} in the current working
+directory, and, if this file exists, executes it. This file can be
+used to provide necessary default settings. For example, the following
+@file{.mixsim} file assigns @file{easter.dck} to the card reader
+device and sets breakpoint at address @samp{1000}:
+
+@smallexample
+asgn 16 easter.dck
+br 1000
+@end smallexample
+
+@node mixsim invocation
+@section @command{mixsim} option summary.
+
+This section summarizes @command{mixsim} command line options.
+
+@smallexample
+@group
+@r{Usage:}
+mixsim [@var{options}] [@var{deck-file}]
+@end group
+@end smallexample
+
+@table @option
+@opsummary{assign}
+@item --assign-device=@var{dev}=@var{file}
+@itemx -a @var{dev}=@var{file}
+Assign @var{file} to the @MIX{} device @var{dev}.
+
+@xref{exec}.
+
+@opsummary{terminal}
+@item --terminal 
+@itemx -t
+Run in terminal mode.
+
+@xref{terminal}.
+
+@opsummary{help}
+@item --help
+@itemx -h
+Print a concise help summary.
+
+@opsummary{version}
+@item --version
+@itemx -V
+Print program version and license information.
+@end table
+
+@node mixrun, Reporting Bugs, mixsim, Top
+@chapter @command{mixrun} 
+@pindex mixrun
+  The @MIX{} package provides a utility for assembling and executing a
+@MIXAL{} file in one run. The utility is called @code{mixrun}. In its
+simplest form, it is called with the name of @MIXAL{} source file as
+an argument, e.g.:
+
+@smallexample
+$ mixrun hello.mix
+HELLO, WORLD
+
+Registers A/X    +00000000000 +00041363636
+                 +          0 +    8775582
+
+Index Registers  +00000  +00000  +05670  +00000  +00000  +00000
+                 +    0  +    0  + 3000  +    0  +    0  +    0
+@dots{}
+@end smallexample
+
+@xopindex{dump, described}
+@sopindex{d, described}
+By default, a dump of the machine state is produced at the standard error. To
+direct it to another file, use @option{--dump} (@option{-d}) command
+line option, e.g.: @command{mixrun --dump=hello.dump hello.mix}.
+
+@xopindex{no-dump, described}
+To suppress the dump, use @option{--no-dump} command line option.
+
+@xopindex{list, described}
+@sopindex{l, described}
+You can also request producing a listing file. To do so, use
+@option{--list} (@option{-l}) option. By default, the name of 
+the listing file is constructed by appending @file{.lst} suffix to the
+base name of the input file. To use another file, give its name as an
+argument to @option{--list}, as in the example below:
+
+@smallexample
+$ mixrun --list=my.list @file{input}
+# @r{or:}
+$ mixrun -lmy.list @file{input}
+@end smallexample
+
+Notice, that an argument to @option{--list} option must be separated
+from it by an equals sign, with no whitespace on any side of
+it. Similarly, when a short form, @option{-l}, is used, its argument
+must follow the option immediately.
+
+As any other @MIX{} program, @command{mixrun} understands two
+informational options. The option @option{--version} (@option{-V})
+displays the program version and a short licensing information, and
+the option @option{--help} (@option{-h}) shows a short usage summary.
+
+@node Reporting Bugs, Copying This Manual, mixrun, Top
+@chapter How to Report a Bug
+
+Email bug reports to @email{gray@@gnu.org.ua}.
+
+As the purpose of bug reporting is to improve software, please be sure
+to include maximum information when reporting a bug. The information
+needed is:
+
+@itemize
+@item Version of the package you are using.
+@item Compilation options used when configuring the package.
+@item Conditions under which the bug appears.
+@end itemize
+
+@node Copying This Manual, Concept Index, Reporting Bugs, Top
+@include fdl.texi
+
+@node Concept Index,  , Copying This Manual, Top
+@comment node-name,  next,  previous,  up
+@unnumbered Concept Index
+
+This is a general index of all issues discussed in this manual.
+
+@printindex cp
+
+@bye
+
+
+
+

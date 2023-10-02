@@ -1,0 +1,60 @@
+# Process this file with autom4te to create testsuite. -*- Autotest -*-
+# Copyright (C) 2005, 2007 Sergey Poznyakoff
+#
+# This program is free software; you can redistribute it and/or
+# modify it under the terms of the GNU General Public License as
+# published by the Free Software Foundation; either version 3, or (at
+# your option) any later version.
+#
+# This program is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+# We need a recent Autotest.
+m4_version_prereq([2.52g])
+
+m4_define([mix_load_deck],[ O O6 Z O6    I C O4 0 EH A  F F CF 0  E   EU 0 IH G BB   EJ  CA. Z EU   EH E BA
+   EU 2A-H S BB  C U 1AEH 2AEN V  E  CLU  ABG Z EH E BB J B. A  9               ])
+
+m4_define([MIXAL_CHECK],[
+dnl Prepare sample deck
+echo "mix_load_deck" > expout
+AT_DATA([tmp],[$2
+])
+sed '$!s/^...../PROG /' tmp >> expout
+dnl Save the program
+AT_DATA([prog],[$1
+])
+AT_CHECK([mixal prog],
+[0],
+[expout],
+[$3],[$4],[$5])])
+
+m4_define([MIXAL_CHECK_PROG],[
+dnl Prepare sample deck
+echo "mix_load_deck" > deck
+AT_DATA([tmp],[$2
+])
+cat deck tmp >> expout
+AT_CHECK([mixal $1],
+[0],
+[expout],
+[$3],[$4],[$5])])
+
+AT_INIT
+
+AT_TESTED([mixal mixsim])
+
+m4_include([version.at])
+m4_include([bref.at])
+m4_include([lbref.at])
+m4_include([fref.at])
+m4_include([lfref.at])
+m4_include([lref.at])
+m4_include([ifref.at])
+m4_include([easter.at])
+

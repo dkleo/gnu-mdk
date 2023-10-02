@@ -1,0 +1,103 @@
+\I\\{abort}, 29, 31.
+\I\\{ap}, \[13].
+\I\\{argc}, \[43].
+\I\\{argv}, 5, 7, 12, \[43].
+\I\\{assert}, 34.
+\I\|{c}, \[43].
+\I\.{CBODY}, \[16], 40.
+\I\.{CHEAD}, \[16], 36, 37.
+\I\\{clearsave}, \[28], 32, 34, 36.
+\I\.{COMMENT}, \[16], 34, 38, 40.
+\I\\{convertor}, \[20], 43.
+\I\\{copychars}, \[33], 36, 37, 38, 40, 42.
+\I\.{CTAIL}, \[16], 40.
+\I\\{ctangle\_comment}, \[39].
+\I\.{DEFNS}, \[16], 37, 38.
+\I\\{effective\_locus}, \[4], 5, 9, 15, 24, 31, 34.
+\I\.{EOF}, 20, 30, 33, 34, 43.
+\I\.{EOL}, \[16], 33, 34, 40.
+\I\\{errno}, 7, 8.
+\I\\{escape}, \[40], \[41].
+\I\\{exit}, 7, 8, 14, 43.
+\I\\{fgetc}, 24.
+\I\\{file}, \[3], 5, 9, 15, 31, 34.
+\I\\{flushsave}, \[32], 33, 40.
+\I\\{fmt}, \[13].
+\I\\{fopen}, 7, 8.
+\I\\{fprintf}, 9, 10, 13, 14.
+\I\\{fputc}, 33, 38, 40, 41.
+\I\\{fwrite}, 32.
+\I\\{get\_token}, \[34], 35.
+\I\\{getopt}, 43.
+\I\\{gettkn}, 21, 22, \[35], 36, 37, 38, 40, 41, 42.
+\I\.{HAVE\_CONFIG\_H}, 2.
+\I\.{HAVE\_GETOPT\_H}, 2.
+\I\|{i}, \[39].
+\I\\{infile}, \[6], 7, 24.
+\I\\{input\_error}, \[15], 29, 31, 34.
+\I\\{isdigit}, 34, 39.
+\I\\{isspace}, 34.
+\I\\{lastchar}, \[21], 24, 27, 29, 30, 33, 34, 40, 41.
+\I\.{LIMBO}, \[16], 36.
+\I\\{line}, \[3], 4, 5, 9, 15, 22, 24, 31, 34.
+\I\.{LINE}, \[16], 22, 34.
+\I\\{linestr}, \[34].
+\I\&{Locus}, \[3], 4.
+\I\\{main}, 12, \[43].
+\I\\{malloc}, 34.
+\I\.{MAXSAVECHARS}, \[23], 25, 29, 31.
+\I\\{memcmp}, 39.
+\I\\{memcpy}, 34.
+\I\\{msg}, \[14], \[15].
+\I\|{n}, \[34].
+\I\\{nesting}, \[41].
+\I\\{nextchar}, 21, \[24], 30, 33, 34, 40, 41.
+\I\\{optarg}, 43.
+\I\\{optind}, 5, 7, 43.
+\I\\{outfile}, \[6], 8, 9, 10, 32, 33, 38, 40, 41.
+\I\\{outname}, 8, \[43].
+\I\\{output\_chars}, \[10], 41.
+\I\\{output\_effective\_line}, \[9], 37, 41, 42.
+\I\|{p}, \[10], \[34].
+\I\\{pbuffer}, \[23], 24, 26, 27.
+\I\\{pindex}, \[23], 24, 26, 27.
+\I\\{printf}, 43.
+\I\\{proc\_cbody}, 19, \[41].
+\I\\{proc\_chead}, 19, \[37].
+\I\\{proc\_ctail}, 19, \[42].
+\I\\{proc\_defns}, 19, \[38].
+\I\\{proc\_limbo}, 19, \[36].
+\I\\{proc\_rules}, 19, \[40].
+\I\\{process}, \[19], 20.
+\I\&{Procfun}, \[17], 19.
+\I\\{progname}, \[11], 12, 13, 14.
+\I\\{putback}, \[26], 40, 41.
+\I\\{putback\_last}, \[27], 41.
+\I\\{quote}, \[40], \[41].
+\I\\{real\_locus}, \[4], 5, 24.
+\I\\{return\_line\_info}, \[22], 34, 36, 37, 38, 40, 41, 42.
+\I\.{RULES}, \[16], 36, 38, 40, 41.
+\I\\{save\_effective\_line}, \[31], 34.
+\I\\{savebuffer}, \[25], 26, 29, 31, 32, 34, 36, 39.
+\I\\{savechar}, \[29], 34, 40, 41.
+\I\\{saveindex}, \[25], 26, 28, 29, 31, 32, 34, 36, 39.
+\I\\{skipchars}, \[30], 34.
+\I\\{sprintf}, 31.
+\I\\{state}, \[16], 20, 36, 37, 38, 40, 41.
+\I\\{stderr}, 13, 14.
+\I\\{stdin}, 7.
+\I\\{stdout}, 8.
+\I\\{strchr}, 41.
+\I\\{strcmp}, 7, 8.
+\I\\{strerror}, 7, 8.
+\I\\{strrchr}, 12.
+\I\\{token}, 20, \[21], 33, 35, 36, 37, 38, 40.
+\I\\{usage\_error}, \[14], 43.
+\I\\{va\_end}, 13.
+\I\\{va\_start}, 13.
+\I\\{vfprintf}, 13.
+\I\\{ws}, \[40].
+\I\.{YLBRACE}, \[16], 34, 36.
+\I\.{YRBRACE}, \[16], 34, 37.
+\I\.{YSEP}, \[16], 34, 36, 38, 40.
+

@@ -1,0 +1,67 @@
+\I\.{ADDRESS}, 10, 21.
+\I\.{ALF}, 20.
+\I\.{ASTERISK}, 14, 25.
+\I\\{atoi}, 24.
+\I\.{BEGIN}, 14, 16, 17, 20, 21, 28, 29, 30, 35.
+\I\\{Bias}, 6.
+\I\\{bias}, \[7].
+\I\.{BOGUS}, 19.
+\I\.{COMMENT}, 10, 14, 20, 28.
+\I\\{copy\_alf}, \[4], 20.
+\I\\{debug}, \[34].
+\I\.{DEF}, 13.
+\I\.{DEFINED\_SYMBOL}, 23.
+\I\.{FLEX\_DEBUG}, 34.
+\I\\{fp}, \[34].
+\I\.{FUTURE\_REFERENCE}, 23.
+\I\.{HAVE\_CONFIG\_H}, 2.
+\I\|{i}, \[4], \[20].
+\I\\{init\_lex}, \[34].
+\I\.{INITIAL}, 16, 29, 30, 35.
+\I\\{install}, 13, 23.
+\I\\{isspace}, 20.
+\I\\{label}, \[3], 13, 17.
+\I\\{length}, \[20].
+\I\\{literal}, 4, 18.
+\I\.{LOC}, 13.
+\I\\{local\_num}, \[5], 7, 13, 23.
+\I\.{LOCAL\_SYMBOL}, 23.
+\I\\{localname}, \[7], 13, 23.
+\I\\{localref}, 13, 23.
+\I\\{lookup}, 13, 23.
+\I\\{lookup\_op}, 19.
+\I\|{n}, \[7].
+\I\\{name}, \[7], \[13], \[23].
+\I\\{nB}, 5.
+\I\\{nF}, 5.
+\I\\{nH}, 5.
+\I\.{NUMBER}, 24.
+\I\.{OP}, 10, 17.
+\I\.{OPCODE}, 19.
+\I\\{opcode}, 19.
+\I\\{parse\_error}, 13, 31.
+\I\.{PSEUDO}, 18.
+\I\\{ptr}, \[4].
+\I\\{reset\_lex}, \[35].
+\I\|{s}, \[20].
+\I\\{size}, \[4].
+\I\.{SLASHES}, 26.
+\I\\{sprintf}, 7.
+\I\\{strcpy}, 13, 17, 18.
+\I\\{strlen}, 13, 23, 24.
+\I\\{symp}, 13, 23.
+\I\.{TEXT}, 15.
+\I\\{tlist}, 14, 15, 16, 17, 18, 19, 20, 23, 24, 25, 26, 27, 28, 29, 30.
+\I\\{txt}, 15.
+\I\\{type}, 13, 23.
+\I\.{UNDEF}, 13, 23.
+\I\\{val}, 24.
+\I\\{warning}, 20.
+\I\\{yy\_flex\_debug}, 34.
+\I\\{yyerror}, 13, 19, 22, 23, 24.
+\I\\{yyin}, 34.
+\I\\{yyleng}, 20.
+\I\\{yylval}, 4, 13, 15, 18, 19, 23, 24.
+\I\\{yytext}, 13, 15, 16, 18, 19, 20, 23, 24, 27, 28, 29, 30, 31.
+\I\\{yywrap}, \[33].
+

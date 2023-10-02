@@ -1,0 +1,35 @@
+* MIX INITIAL LOADER
+BUFF	EQU  29			Buffer area 0029-0044.
+	ORIG 0
+LOC	IN   16(16)		Read second card.
+READ	IN   BUF(16)		Read next card.	
+	LD1  0(0:0)		rI1 <- 0.
+	JBUS *(16)		Wait till reading finishes.
+	LDA  BUFF+1		rA <- columns 6-10.
+1H	SLA  1			
+	SRAX 6			rAX <- columns 7-10.
+2H	NUM  30
+	STA  LOC		LOC <- start address.
+	LDA  BUFF+1(1:1)	
+	SUB  2B(0:2)
+LOOP	LD3  LOC		rI3 <- LOC.
+	JAZ  0,3		Jump if transition card.
+	STA  BUFF		BUFF <- counter.
+	LDA  LOC
+	ADD  1B(0:2)
+* SECOND CARD
+	STA  LOC		LOC++.
+	LDA  BUFF+3,1(5:5)
+	SUB  3F(0:2)
+	STA  0,3(0:0)		Save sign.
+	LDA  BUFF+2,1
+	LDX  BUFF+3,1
+3H	NUM  25
+	STA  0,3(1:5)		Save absolute value.
+	MOVE 0,1(2)		rI1 <- rI1 + 2.
+	LDA  BUFF
+	SUB  1B(0:2)		Decrease counter.
+	JAP  LOOP		Repeat until counter == 0.
+	JMP  READ		Read next card.
+	END  LOC
+

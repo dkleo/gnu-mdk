@@ -1,0 +1,779 @@
+\input cwebmac
+% This file is part of MIX
+% Copyright (C) 2005, 2007 Sergey Poznyakoff
+%
+% This program is free software; you can redistribute it and/or
+% modify it under the terms of the GNU General Public License as
+% published by the Free Software Foundation; either version 3,
+% or (at your option) any later version.
+%
+% This program is distributed in the hope that it will be useful, but
+% WITHOUT ANY WARRANTY; without even the implied warranty of
+% MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+% General Public License for more details.
+%
+% You should have received a copy of the GNU General Public License
+% along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+
+\N{1}{1}YFMT -- CTANGLE TO YACC/LEX REFORMATTER.
+
+{\sl Ctangle\/} was not designed to produce other files, than \CEE/ sources.
+However, it can, with certain precautions, be used to produce \.{YACC} or
+\.{LEX} source files as well. \.{MIX} project explores this
+possibility.
+
+Apart from some minor formatting hacks (see {\tt src/mixal.w} and
+{\tt src/mixlex.w}), reformatting of the resulting {\sl ctangle\/} output is
+needed. This program is designed to take care of it.
+
+One major problem are {\tt \#line} preprocessor directives inserted by
+{\sl ctangle.} These are allowed only in \CEE/ parts of a \.{YACC} or
+\.{LEX} source. {\sl Yfmt\/} removes these from where they do not
+belong and inserts additional {\tt \#line} directives after opening
+braces of \CEE/ blocks to keep the line numbering correct.
+
+Another problem are {\sl ctangle\/} comments. These are inserted at
+column \PB{\T{0}} and confuse {\sl lex} when they are encountered in the
+rule section. When processing rule sections, {\sl yfmt\/} prepends
+with a tab character any comments and any \CEE/ code it encounters.
+
+\def\ysep/{{\tt \%\%}}
+\def\ylbrace/{{\tt \%$\{$}}
+\def\yrbrace/{{\tt \%$\}$}}
+
+\Y\fi
+
+\M{2}Header files to include.
+\Y\B\8\#\&{ifdef} \.{HAVE\_CONFIG\_H}\6
+\8\#\&{include} \.{<config.h>}\6
+\8\#\&{endif}\6
+\8\#\&{include} \.{<stdio.h>}\6
+\8\#\&{include} \.{<stdlib.h>}\6
+\8\#\&{include} \.{<unistd.h>}\6
+\8\#\&{include} \.{<stdarg.h>}\6
+\8\#\&{include} \.{<errno.h>}\6
+\8\#\&{include} \.{<assert.h>}\6
+\8\#\&{ifdef} \.{HAVE\_GETOPT\_H}\6
+\8\#\&{include} \.{<getopt.h>}\6
+\8\#\&{endif}\par
+\fi
+
+\M{3}This structure represents a location in the source file.
+\Y\B\&{typedef} \&{struct} ${}\{{}$\1\6
+\&{char} ${}{*}\\{file};{}$\6
+\&{int} \\{line};\2\6
+${}\}{}$ \&{Locus};\par
+\fi
+
+\M{4}These two variables represent the ``real'' and ``original''
+location. \PB{\\{real\_locus}} is the location relative to the current input
+file. \PB{\\{effective\_locus}} is the location based on the recent \PB{${\#}%
+\\{line}$}
+directive.
+\Y\B\&{Locus} \\{real\_locus}${},{}$ \\{effective\_locus};\par
+\fi
+
+\M{5}The following code is used to initialize these variables.
+\Y\B\4\X5:Initialize locus variables\X${}\E{}$\6
+$\\{real\_locus}.\\{file}\K\\{effective\_locus}.\\{file}\K\\{argv}[%
+\\{optind}];{}$\6
+${}\\{real\_locus}.\\{line}\K\\{effective\_locus}.\\{line}\K\T{1}{}$;\par
+\U43.\fi
+
+\M{6}Input and output file descriptors.
+\Y\B\&{FILE} ${}{*}\\{infile},{}$ ${}{*}\\{outfile}{}$;\par
+\fi
+
+\M{7}Usual code for opening the input line.
+\Y\B\4\X7:Open input file\X${}\E{}$\6
+\&{if} ${}(\\{strcmp}(\\{argv}[\\{optind}],\39\.{"-"})\E\T{0}){}$\1\5
+${}\\{infile}\K\\{stdin};{}$\2\6
+\&{else} \&{if} ${}((\\{infile}\K\\{fopen}(\\{argv}[\\{optind}],\39\.{"r"}))\E%
+\NULL){}$\5
+${}\{{}$\1\6
+\&{error} ${}(\.{"Cannot\ open\ input\ f}\)\.{ile\ `\%s':\ \%s"},\39\\{argv}[%
+\\{optind}],\39\\{strerror}(\\{errno})){}$\1\5
+;\2\6
+\\{exit}(\T{1});\6
+\4${}\}{}$\2\par
+\U43.\fi
+
+\M{8}
+\Y\B\4\X8:Open output file\X${}\E{}$\6
+\&{if} ${}(\\{strcmp}(\\{outname},\39\.{"-"})\E\T{0}){}$\1\5
+${}\\{outfile}\K\\{stdout};{}$\2\6
+\&{else} \&{if} ${}((\\{outfile}\K\\{fopen}(\\{outname},\39\.{"w"}))\E\NULL){}$%
+\5
+${}\{{}$\1\6
+\&{error} ${}(\.{"Cannot\ open\ output\ }\)\.{file\ `\%s':\ \%s"},\39%
+\\{outname},\39\\{strerror}(\\{errno})){}$\1\5
+;\2\6
+\\{exit}(\T{1});\6
+\4${}\}{}$\2\par
+\U43.\fi
+
+\M{9}Output effective line number
+\Y\B\&{void} \\{output\_effective\_line}(\,)\1\1\2\2\6
+${}\{{}$\1\6
+${}\\{fprintf}(\\{outfile},\39\.{"\#line\ \%d\ \\"\%s\\"\\n"},\39\\{effective%
+\_locus}.\\{line},\39\\{effective\_locus}.\\{file});{}$\6
+\4${}\}{}$\2\par
+\fi
+
+\M{10}
+\Y\B\&{void} \\{output\_chars}(\&{char} ${}{*}\|p){}$\1\1\2\2\6
+${}\{{}$\1\6
+${}\\{fprintf}(\\{outfile},\39\.{"\%s"},\39\|p);{}$\6
+\4${}\}{}$\2\par
+\fi
+
+\M{11}Program name for error reporting.
+\Y\B\&{char} ${}{*}\\{progname}{}$;\par
+\fi
+
+\M{12}It is set in \PB{\\{main}} using the following code.
+\Y\B\4\X12:Set progname\X${}\E{}$\6
+$\\{progname}\K\\{strrchr}(\\{argv}[\T{0}],\39\.{'/'});{}$\6
+\&{if} (\\{progname})\1\5
+${}\\{progname}\PP;{}$\2\6
+\&{else}\1\5
+${}\\{progname}\K\\{argv}[\T{0}]{}$;\2\par
+\U43.\fi
+
+\M{13}Error reporting function
+\Y\B\&{void} \&{error} (\&{char} ${}{*}\\{fmt},\39\,\ldots\,)$ \6
+${}\{{}$\1\6
+\&{va\_list} \\{ap};\7
+${}\\{fprintf}(\\{stderr},\39\.{"\%s:\ "},\39\\{progname});{}$\6
+${}\\{va\_start}(\\{ap},\39\\{fmt});{}$\6
+${}\\{vfprintf}(\\{stderr},\39\\{fmt},\39\\{ap});{}$\6
+\\{va\_end}(\\{ap});\6
+${}\\{fprintf}(\\{stderr},\39\.{"\\n"});{}$\6
+\4${}\}{}$\2\par
+\fi
+
+\M{14}Report usage error
+\Y\B\&{void} \\{usage\_error}(\&{char} ${}{*}\\{msg}){}$\1\1\2\2\6
+${}\{{}$\1\6
+\&{error} (\\{msg})\1\5
+;\2\6
+${}\\{fprintf}(\\{stderr},\39\.{"Try\ `\%s\ -h'\ for\ mor}\)\.{e\ information.%
+\\n"},\39\\{progname});{}$\6
+\\{exit}(\T{1});\6
+\4${}\}{}$\2\par
+\fi
+
+\M{15}Report input file error
+\Y\B\&{void} \\{input\_error}(\&{char} ${}{*}\\{msg}){}$\1\1\2\2\6
+${}\{{}$\1\6
+\&{error} ${}(\.{"\%s:\%d:\ \%s"},\39\\{effective\_locus}.\\{file},\39%
+\\{effective\_locus}.\\{line},\39\\{msg}){}$\1\5
+;\2\6
+\4${}\}{}$\2\par
+\fi
+
+\M{16}Each Yacc/Lex source file contains at most 5 sections:
+
+\PB{\.{LIMBO}} - Initial section before the first \ylbrace/ or \ysep/.
+
+\PB{\.{CHEAD}} - Optional \CEE/ header enclosed between \ylbrace/ and %
+\yrbrace/.
+
+\PB{\.{DEFNS}} - Optional source-specific defines. The exact format depends on
+whether
+it is a {\tt .y} or {\tt .l} source. The section ends with the first
+\ysep/.
+
+\PB{\.{RULES}} - Rules section. It starts after first \ysep/ and ends with the
+second \ysep/ or end of file, whichever is encountered first.
+
+\PB{\.{CBODY}} - A \CEE/ code part in \PB{\.{RULES}} section. It starts with
+the first $\{$
+character after the first unescaped whitespace on the line, and ends when a
+matching $\}$ is encountered.
+
+Within both \PB{\.{RULES}} and \PB{\.{CBODY}} sections a limited \CEE/ lexical
+support is enabled, namely, \CEE/ strings are understood and `$\{$',
+`$\}$' are matched.
+
+\PB{\.{CTAIL}} - \CEE/ tail section. It starts after the second \ysep/, if it
+is present, and extends to the end of file.
+
+Among these sections, only \PB{\.{RULES}} is obligatory.
+
+\Y\B\4\D$\.{LIMBO}$ \5
+\T{0}\par
+\B\4\D$\.{CHEAD}$ \5
+\T{1}\par
+\B\4\D$\.{DEFNS}$ \5
+\T{2}\par
+\B\4\D$\.{RULES}$ \5
+\T{3}\par
+\B\4\D$\.{CBODY}$ \5
+\T{4}\par
+\B\4\D$\.{CTAIL}$ \5
+\T{5}\par
+\B\4\D$\.{EOL}$ \5
+\T{1}\par
+\B\4\D$\.{LINE}$ \5
+\T{2}\par
+\B\4\D$\.{YSEP}$ \5
+\T{3}\par
+\B\4\D$\.{YLBRACE}$ \5
+\T{4}\par
+\B\4\D$\.{YRBRACE}$ \5
+\T{5}\par
+\B\4\D$\.{COMMENT}$ \5
+\T{6}\par
+\Y\B\ATH\6
+\&{int} \\{state};\C{ Current input file state }\par
+\fi
+
+\M{17}Type of process function.
+\Y\B\&{typedef} \&{void} ${}({*}\&{Procfun})(\&{void}){}$;\par
+\fi
+
+\M{18}
+\Y\B\X21:Basic input functions\X\6
+\X36:Process functions\X\par
+\fi
+
+\M{19}Table of processing functions for each state.
+\Y\B\&{Procfun} \\{process}[\,]${}\K\{\\{proc\_limbo},\39\\{proc\_chead},\39%
+\\{proc\_defns},\39\\{proc\_rules},\39\\{proc\_cbody},\39\\{proc\_ctail}\}{}$;%
+\par
+\fi
+
+\M{20}Main processing function.
+\Y\B\&{int} \\{convertor}(\,)\1\1\2\2\6
+${}\{{}$\1\6
+\&{while} ${}(\\{token}\I\.{EOF}){}$\1\5
+\\{process}[\\{state}](\,);\2\6
+\&{return} \T{0};\6
+\4${}\}{}$\2\par
+\fi
+
+\M{21}Input token
+\Y\B\4\X21:Basic input functions\X${}\E{}$\6
+\&{int} \\{token};\C{ Last input token as read by \PB{\\{gettkn}} }\6
+\&{int} \\{lastchar}${}\K\.{'\\n'}{}$;\C{ Last input character returned by \PB{%
+\\{nextchar}} }\par
+\As22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34\ETs35.
+\U18.\fi
+
+\M{22}\PB{\\{return\_line\_info}} controls the behavior of \PB{\\{gettkn}}
+after processing
+a \PB{${\#}\\{line}$} directive. If \PB{$\\{return\_line\_info}\E\T{0}$}, \PB{%
+\\{gettkn}} will attempt to
+read next token after the directive was handled. Otherwise, \PB{\\{gettkn}}
+will
+return \PB{\.{LINE}}.
+\Y\B\4\X21:Basic input functions\X${}\mathrel+\E{}$\6
+\&{int} \\{return\_line\_info}${}\K\T{0}{}$;\par
+\fi
+
+\M{23}The putback buffer is used when it is necessary to return several
+characters
+to the input stream. The buffer is filled from left to right and read from
+right to left.
+
+\Y\B\4\D$\.{MAXSAVECHARS}$ \5
+\T{128}\par
+\Y\B\4\X21:Basic input functions\X${}\mathrel+\E{}$\6
+\&{char} \\{pbuffer}[\.{MAXSAVECHARS}];\C{ Putback buffer }\6
+\&{int} \\{pindex}${}\K\T{0}{}$;\C{ Index of the next available slot in \PB{%
+\\{pbuffer}} }\par
+\fi
+
+\M{24}Read next character from the input. Update source locations if necessary.
+\Y\B\4\X21:Basic input functions\X${}\mathrel+\E{}$\6
+\&{int} \\{nextchar}(\,)\1\1\2\2\6
+${}\{{}$\1\6
+\&{if} ${}(\\{pindex}>\T{0}){}$\1\5
+${}\\{lastchar}\K\\{pbuffer}[\MM\\{pindex}];{}$\2\6
+\&{else}\5
+${}\{{}$\1\6
+${}\\{lastchar}\K\\{fgetc}(\\{infile});{}$\6
+\&{if} ${}(\\{lastchar}\E\.{'\\n'}){}$\5
+${}\{{}$\1\6
+${}\\{real\_locus}.\\{line}\PP;{}$\6
+${}\\{effective\_locus}.\\{line}\PP;{}$\6
+\4${}\}{}$\2\6
+\4${}\}{}$\2\6
+\&{return} \\{lastchar};\6
+\4${}\}{}$\2\par
+\fi
+
+\M{25}A save buffer, used to keep the characters read for eventual future use.
+The buffer is filled and read from left to right.
+\Y\B\4\X21:Basic input functions\X${}\mathrel+\E{}$\6
+\&{char} \\{savebuffer}[\.{MAXSAVECHARS}];\6
+\&{int} \\{saveindex};\par
+\fi
+
+\M{26}Put the current save buffer contents back into the input stream.
+\Y\B\4\X21:Basic input functions\X${}\mathrel+\E{}$\6
+\&{void} \\{putback}(\,)\1\1\2\2\6
+${}\{{}$\1\6
+\&{while} ${}(\\{saveindex}>\T{0}){}$\1\5
+${}\\{pbuffer}[\\{pindex}\PP]\K\\{savebuffer}[\MM\\{saveindex}];{}$\2\6
+\4${}\}{}$\2\par
+\fi
+
+\M{27}Put the last read character back into the input stream.
+\Y\B\4\X21:Basic input functions\X${}\mathrel+\E{}$\6
+\&{void} \\{putback\_last}(\,)\1\1\2\2\6
+${}\{{}$\1\6
+${}\\{pbuffer}[\\{pindex}\PP]\K\\{lastchar};{}$\6
+\4${}\}{}$\2\par
+\fi
+
+\M{28}Clear the save buffer.
+\Y\B\4\X21:Basic input functions\X${}\mathrel+\E{}$\6
+\&{void} \\{clearsave}(\,)\1\1\2\2\6
+${}\{{}$\1\6
+${}\\{saveindex}\K\T{0};{}$\6
+\4${}\}{}$\2\par
+\fi
+
+\M{29}Save the current character.
+\Y\B\4\X21:Basic input functions\X${}\mathrel+\E{}$\6
+\&{void} \\{savechar}(\,)\1\1\2\2\6
+${}\{{}$\1\6
+\&{if} ${}(\\{saveindex}\E\.{MAXSAVECHARS}){}$\5
+${}\{{}$\1\6
+\\{input\_error}(\.{"Save\ buffer\ overflo}\)\.{w"});\6
+\\{abort}(\,);\6
+\4${}\}{}$\2\6
+${}\\{savebuffer}[\\{saveindex}\PP]\K\\{lastchar};{}$\6
+\4${}\}{}$\2\par
+\fi
+
+\M{30}Skip all characters up to the end of line.
+\Y\B\4\X21:Basic input functions\X${}\mathrel+\E{}$\6
+\&{void} \\{skipchars}(\,)\1\1\2\2\6
+${}\{{}$\1\6
+\&{while} ${}(\\{nextchar}(\,)\I\.{EOF}\W\\{lastchar}\I\.{'\\n'}){}$\1\5
+;\2\6
+\4${}\}{}$\2\par
+\fi
+
+\M{31}Format the effective code location as \PB{${\#}\\{line}$} preprocessor
+directive
+and place it into the save buffer.
+\Y\B\4\X21:Basic input functions\X${}\mathrel+\E{}$\6
+\&{void} \\{save\_effective\_line}(\,)\1\1\2\2\6
+${}\{{}$\1\6
+${}\\{saveindex}\K\\{sprintf}(\\{savebuffer},\39\.{"\#line\ \%d\ \\"\%s\\"%
+\\n"},\39\\{effective\_locus}.\\{line},\39\\{effective\_locus}.\\{file});{}$\6
+\&{if} ${}(\\{saveindex}\E\.{MAXSAVECHARS}){}$\5
+${}\{{}$\1\6
+\\{input\_error}(\.{"Save\ buffer\ overflo}\)\.{w"});\6
+\\{abort}(\,);\6
+\4${}\}{}$\2\6
+\4${}\}{}$\2\par
+\fi
+
+\M{32}Flush save buffer.
+\Y\B\4\X21:Basic input functions\X${}\mathrel+\E{}$\6
+\&{void} \\{flushsave}(\,)\1\1\2\2\6
+${}\{{}$\1\6
+\&{if} (\\{saveindex})\5
+${}\{{}$\1\6
+${}\\{fwrite}(\\{savebuffer},\39\\{saveindex},\39\T{1},\39\\{outfile});{}$\6
+\\{clearsave}(\,);\6
+\4${}\}{}$\2\6
+\4${}\}{}$\2\par
+\fi
+
+\M{33}Copy to output all characters from the current position up to the end of
+line.
+\Y\B\4\X21:Basic input functions\X${}\mathrel+\E{}$\6
+\&{void} \\{copychars}(\,)\1\1\2\2\6
+${}\{{}$\1\6
+\&{if} ${}(\\{token}\E\.{EOL}){}$\1\5
+${}\\{fputc}(\.{'\\n'},\39\\{outfile});{}$\2\6
+\&{else}\5
+${}\{{}$\1\6
+\\{flushsave}(\,);\6
+\&{while} ${}(\\{nextchar}(\,)\I\.{EOF}\W\\{lastchar}\I\.{'\\n'}){}$\1\5
+${}\\{fputc}(\\{lastchar},\39\\{outfile});{}$\2\6
+\&{if} ${}(\\{lastchar}\E\.{'\\n'}){}$\1\5
+${}\\{fputc}(\\{lastchar},\39\\{outfile});{}$\2\6
+\4${}\}{}$\2\6
+\4${}\}{}$\2\par
+\fi
+
+\M{34}Read next token from the input stream.
+\Y\B\4\X21:Basic input functions\X${}\mathrel+\E{}$\6
+\&{int} \\{get\_token}(\,)\1\1\2\2\6
+${}\{{}$\1\6
+\&{static} \&{char} ${}{*}\\{linestr}\K\.{"line"};{}$\7
+\&{if} ${}(\\{lastchar}\I\.{'\\n'}){}$\1\5
+\\{skipchars}(\,);\2\6
+\&{if} ${}(\\{nextchar}(\,)\E\.{EOF}){}$\1\5
+\&{return} \.{EOF};\2\6
+\&{if} ${}(\\{lastchar}\E\.{'\\n'}){}$\1\5
+\&{return} \.{EOL};\2\6
+\&{else} \&{if} ${}(\\{lastchar}\E\.{'\#'}){}$\5
+${}\{{}$\1\6
+\&{int} \|n;\6
+\&{char} ${}{*}\|p;{}$\7
+\\{savechar}(\,);\6
+\&{while} ${}(\\{nextchar}(\,)\W\\{isspace}(\\{lastchar}){}$)\C{ Skip optional
+whitespace }\1\6
+;\2\6
+\&{for} ${}(\|p\K\\{linestr};{}$ ${}{*}\|p;{}$ ${}\|p\PP,\39\\{nextchar}(%
+\,)){}$\5
+${}\{{}$\1\6
+\\{savechar}(\,);\6
+\&{if} ${}(\\{lastchar}\I{*}\|p){}$\1\5
+\&{return} \.{LINE};\2\6
+\4${}\}{}$\2\6
+\&{while} ${}(\\{nextchar}(\,)\W\\{isspace}(\\{lastchar}){}$)\C{ Skip
+whitespace }\1\6
+;\2\6
+\\{clearsave}(\,);\6
+\&{if} ${}(\R\\{isdigit}(\\{lastchar})){}$\1\5
+\\{input\_error}(\.{"Invalid\ \#line\ direc}\)\.{tive"});\2\6
+\&{else}\5
+${}\{{}$\1\6
+\&{for} ${}(\|n\K\T{0};{}$ \\{isdigit}(\\{lastchar}); \\{nextchar}(\,))\1\5
+${}\|n\K\|n*\T{10}+\\{lastchar}-\.{'0'};{}$\2\6
+${}\\{effective\_locus}.\\{line}\K\|n-\T{1}{}$;\C{ Compensate for the next
+newline }\6
+\&{while} ${}((\\{lastchar}\I\.{'\\n'}\W\\{isspace}(\\{lastchar}))\W%
+\\{nextchar}(\,){}$)\C{ Skip whitespace }\1\6
+;\2\6
+\&{if} ${}(\\{lastchar}\E\.{'"'}){}$\5
+${}\{{}$\C{ Collect the file name }\1\6
+\&{while} ${}(\\{nextchar}(\,)\W\\{lastchar}\I\.{'"'}){}$\1\5
+\\{savechar}(\,);\2\6
+${}\\{effective\_locus}.\\{file}\K\\{malloc}(\\{saveindex}+\T{1});{}$\6
+${}\\{assert}(\\{effective\_locus}.\\{file}\I\NULL);{}$\6
+${}\\{memcpy}(\\{effective\_locus}.\\{file},\39\\{savebuffer},\39%
+\\{saveindex});{}$\6
+${}\\{effective\_locus}.\\{file}[\\{saveindex}]\K\T{0};{}$\6
+\\{clearsave}(\,);\6
+\4${}\}{}$\2\6
+\&{if} (\\{return\_line\_info})\5
+${}\{{}$\1\6
+\\{save\_effective\_line}(\,);\6
+\&{return} \.{LINE};\6
+\4${}\}{}$\2\6
+\4${}\}{}$\2\6
+\4${}\}{}$\2\6
+\&{else} \&{if} ${}(\\{lastchar}\E\.{'\%'}){}$\5
+${}\{{}$\1\6
+\\{savechar}(\,);\6
+\\{nextchar}(\,);\6
+\\{savechar}(\,);\6
+\&{switch} (\\{lastchar})\5
+${}\{{}$\1\6
+\4\&{case} \.{'\{'}:\5
+\&{return} \.{YLBRACE};\6
+\4\&{case} \.{'\}'}:\5
+\&{return} \.{YRBRACE};\6
+\4\&{case} \.{'\%'}:\5
+\&{return} \.{YSEP};\6
+\4\&{default}:\5
+\&{return} \.{LINE};\6
+\4${}\}{}$\2\6
+\4${}\}{}$\2\6
+\&{else} \&{if} ${}(\\{lastchar}\E\.{'/'}){}$\5
+${}\{{}$\1\6
+\\{savechar}(\,);\6
+\&{if} ${}(\\{nextchar}(\,)\E\.{'*'}){}$\5
+${}\{{}$\1\6
+\&{do}\5
+${}\{{}$\1\6
+\&{do}\5
+\\{savechar}(\,);\5
+\&{while} ${}(\\{nextchar}(\,)\W\\{lastchar}\I\.{'*'});{}$\6
+\\{savechar}(\,);\6
+\4${}\}{}$\2\5
+\&{while} ${}(\\{nextchar}(\,)\W\\{lastchar}\I\.{'/'});{}$\6
+\\{savechar}(\,);\6
+\&{return} \.{COMMENT};\6
+\4${}\}{}$\2\6
+\&{else}\1\5
+\&{return} \.{LINE};\2\6
+\4${}\}{}$\2\6
+\&{else}\5
+${}\{{}$\1\6
+\\{savechar}(\,);\6
+\&{return} \.{LINE};\6
+\4${}\}{}$\2\6
+\&{return} \\{get\_token}(\,);\C{ Tail recursion }\6
+\4${}\}{}$\2\par
+\fi
+
+\M{35}
+\Y\B\4\X21:Basic input functions\X${}\mathrel+\E{}$\6
+\&{int} \\{gettkn}(\,)\1\1\2\2\6
+${}\{{}$\1\6
+\&{return} \\{token}${}\K\\{get\_token}(\,);{}$\6
+\4${}\}{}$\2\par
+\fi
+
+\M{36}Ignore everything found in the limbo section.
+\Y\B\4\X36:Process functions\X${}\E{}$\6
+\&{void} \\{proc\_limbo}(\,)\1\1\2\2\6
+${}\{{}$\1\6
+${}\\{return\_line\_info}\K\T{0};{}$\6
+\&{while} ${}(\\{state}\E\.{LIMBO}\W\\{gettkn}(\,)>\T{0}){}$\5
+${}\{{}$\1\6
+\&{if} ${}(\\{token}\E\.{YLBRACE}){}$\1\5
+${}\\{state}\K\.{CHEAD};{}$\2\6
+\&{else} \&{if} ${}(\\{token}\E\.{YSEP}){}$\1\5
+${}\\{state}\K\.{RULES};{}$\2\6
+\&{else} \&{if} ${}(\\{saveindex}>\T{0}\W\\{savebuffer}[\T{0}]\E\.{'\%'}){}$\1\5
+\\{copychars}(\,);\2\6
+\&{else}\1\5
+\\{clearsave}(\,);\2\6
+\4${}\}{}$\2\6
+\4${}\}{}$\2\par
+\As37, 38, 40, 41\ETs42.
+\U18.\fi
+
+\M{37}Process a \CEE/ heading section.
+\Y\B\4\X36:Process functions\X${}\mathrel+\E{}$\6
+\&{void} \\{proc\_chead}(\,)\1\1\2\2\6
+${}\{{}$\1\6
+${}\\{return\_line\_info}\K\T{1};{}$\6
+\\{copychars}(\,);\6
+\\{output\_effective\_line}(\,);\6
+\&{while} ${}(\\{state}\E\.{CHEAD}\W\\{gettkn}(\,)>\T{0}){}$\5
+${}\{{}$\1\6
+\\{copychars}(\,);\6
+\&{if} ${}(\\{token}\E\.{YRBRACE}){}$\1\5
+${}\\{state}\K\.{DEFNS};{}$\2\6
+\4${}\}{}$\2\6
+\4${}\}{}$\2\par
+\fi
+
+\M{38}Process input-specific definitions.
+\Y\B\4\X36:Process functions\X${}\mathrel+\E{}$\6
+\&{void} \\{proc\_defns}(\,)\1\1\2\2\6
+${}\{{}$\1\6
+${}\\{return\_line\_info}\K\T{0};{}$\6
+\&{while} ${}(\\{state}\E\.{DEFNS}\W\\{gettkn}(\,)>\T{0}){}$\5
+${}\{{}$\1\6
+\&{if} ${}(\\{token}\E\.{COMMENT}){}$\1\5
+${}\\{fputc}(\.{'\\t'},\39\\{outfile});{}$\2\6
+\\{copychars}(\,);\6
+\&{if} ${}(\\{token}\E\.{YSEP}){}$\1\5
+${}\\{state}\K\.{RULES};{}$\2\6
+\4${}\}{}$\2\6
+\4${}\}{}$\2\par
+\fi
+
+\M{39}Return \PB{\T{1}} if the save buffer contains a valid {\sl ctangle\/}
+comment.
+\Y\B\&{int} \\{ctangle\_comment}(\,)\1\1\2\2\6
+${}\{{}$\1\6
+\&{if} ${}(\\{saveindex}>\T{3}\W\\{memcmp}(\\{savebuffer},\39\.{"/*"},\39\T{2})%
+\E\T{0}){}$\5
+${}\{{}$\1\6
+\&{int} \|i;\7
+\&{if} ${}(\\{savebuffer}[\T{2}]\E\.{':'}){}$\5
+${}\{{}$\1\6
+\&{for} ${}(\|i\K\T{3};{}$ ${}\|i<\\{saveindex}\W\\{savebuffer}[\|i]\I%
+\.{'*'};{}$ ${}\|i\PP){}$\1\6
+\&{if} ${}(\R\\{isdigit}(\\{savebuffer}[\|i])){}$\1\5
+\&{return} \T{0};\2\2\6
+\&{return} \|i${}+\T{1}<\\{saveindex}\W\\{savebuffer}[\|i+\T{1}]\E\.{'/'};{}$\6
+\4${}\}{}$\2\6
+\&{else} \&{if} (\\{isdigit}(\\{savebuffer}[\T{2}]))\5
+${}\{{}$\1\6
+\&{for} ${}(\|i\K\T{3};{}$ ${}\|i<\\{saveindex}\W\\{savebuffer}[\|i]\I%
+\.{':'};{}$ ${}\|i\PP){}$\1\6
+\&{if} ${}(\R\\{isdigit}(\\{savebuffer}[\|i])){}$\1\5
+\&{return} \T{0};\2\2\6
+\&{return} \\{saveindex}${}-\|i>\T{3}\W\\{memcmp}(\\{savebuffer}+\|i,\39%
+\.{":*/"},\39\T{3})\E\T{0};{}$\6
+\4${}\}{}$\2\6
+\4${}\}{}$\2\6
+\&{return} \T{0};\6
+\4${}\}{}$\2\par
+\fi
+
+\M{40}Handle rules section.
+\Y\B\4\X36:Process functions\X${}\mathrel+\E{}$\6
+\&{void} \\{proc\_rules}(\,)\1\1\2\2\6
+${}\{{}$\1\6
+\&{int} \\{ws}${}\K\T{0};{}$\7
+${}\\{return\_line\_info}\K\T{0}{}$;\C{ FIXME! }\6
+\&{while} ${}(\\{state}\E\.{RULES}\W\\{gettkn}(\,)>\T{0}){}$\5
+${}\{{}$\1\6
+\&{if} ${}(\\{token}\E\.{YSEP}){}$\1\5
+${}\\{state}\K\.{CTAIL};{}$\2\6
+\&{else} \&{if} ${}(\\{token}\E\.{EOL}){}$\1\5
+;\2\6
+\&{else} \&{if} ${}(\\{token}\E\.{COMMENT}){}$\5
+${}\{{}$\1\6
+${}\\{fputc}(\.{'\\t'},\39\\{outfile});{}$\6
+\\{copychars}(\,);\6
+\4${}\}{}$\2\6
+\&{else} \&{if} ${}(\\{token}\I\.{EOL}){}$\5
+${}\{{}$\1\6
+\&{int} \\{quote}${}\K\T{0};{}$\6
+\&{int} \\{escape}${}\K\T{0};{}$\7
+\\{putback}(\,);\6
+\&{do}\5
+${}\{{}$\1\6
+\\{nextchar}(\,);\6
+\&{if} (\\{escape})\1\5
+${}\\{escape}\K\T{0};{}$\2\6
+\&{else} \&{if} (\\{quote})\5
+${}\{{}$\1\6
+\&{if} ${}(\\{lastchar}\E\\{quote}){}$\1\5
+${}\\{quote}\K\T{0};{}$\2\6
+\4${}\}{}$\2\6
+\&{else} \&{if} ${}(\\{lastchar}\E\.{'\\\\'}){}$\1\5
+${}\\{escape}\K\T{1};{}$\2\6
+\&{else} \&{if} ${}(\\{lastchar}\E\.{'"'}){}$\1\5
+${}\\{quote}\K\.{'"'};{}$\2\6
+\&{else} \&{if} ${}(\\{lastchar}\E\.{'['}){}$\1\5
+${}\\{quote}\K\.{']'};{}$\2\6
+\&{else} \&{if} ${}(\\{lastchar}\E\.{'\\''}){}$\1\5
+${}\\{quote}\K\.{'\\''};{}$\2\6
+\&{else} \&{if} ${}(\\{lastchar}\E\.{'\ '}\V\\{lastchar}\E\.{'\\t'}){}$\1\5
+${}\\{ws}\K\T{1};{}$\2\6
+\&{else} \&{if} ${}(\\{lastchar}\E\.{'\{'}){}$\5
+${}\{{}$\1\6
+\&{if} (\\{ws})\5
+${}\{{}$\1\6
+${}\\{state}\K\.{CBODY};{}$\6
+\&{break};\6
+\4${}\}{}$\2\6
+\4${}\}{}$\2\6
+\\{savechar}(\,);\6
+\4${}\}{}$\2\5
+\&{while} ${}(\\{lastchar}\I\.{'\\n'});{}$\6
+${}\\{ws}\PP;{}$\6
+\\{flushsave}(\,);\6
+\4${}\}{}$\2\6
+\4${}\}{}$\2\6
+\4${}\}{}$\2\par
+\fi
+
+\M{41}Process \CEE/ material from rules section.
+\Y\B\4\X36:Process functions\X${}\mathrel+\E{}$\6
+\&{void} \\{proc\_cbody}(\,)\1\1\2\2\6
+${}\{{}$\1\6
+\&{int} \\{nesting}${}\K\T{0};{}$\6
+\&{int} \\{quote}${}\K\T{0};{}$\7
+${}\\{return\_line\_info}\K\T{1};{}$\6
+\\{output\_chars}(\.{"\\t\{"});\6
+\&{for} (\\{nextchar}(\,); ${}\\{lastchar}\E\.{'\ '}\V\\{lastchar}\E\.{'%
+\\t'};{}$ \\{nextchar}(\,))\1\5
+${}\\{fputc}(\\{lastchar},\39\\{outfile});{}$\2\6
+\&{if} ${}(\\{lastchar}\I\.{'\\n'}){}$\5
+${}\{{}$\1\6
+${}\\{fputc}(\.{'\\n'},\39\\{outfile});{}$\6
+\\{putback\_last}(\,);\6
+\4${}\}{}$\2\6
+\&{else}\5
+${}\{{}$\1\6
+${}\\{fputc}(\\{lastchar},\39\\{outfile});{}$\6
+\&{if} ${}(\\{gettkn}(\,)<\T{0}){}$\1\5
+\&{return};\2\6
+\\{putback}(\,);\6
+\4${}\}{}$\2\6
+\\{output\_effective\_line}(\,);\6
+\&{while} (\T{1})\5
+${}\{{}$\1\6
+\&{int} \\{escape}${}\K\T{0};{}$\7
+\&{if} ${}(\R\\{strchr}(\.{"\ \\t\#"},\39\\{lastchar})\W\R\\{quote}){}$\1\5
+${}\\{fputc}(\.{'\\t'},\39\\{outfile}){}$;\C{ To keep lex happy }\2\6
+\&{do}\5
+${}\{{}$\1\6
+\\{nextchar}(\,);\6
+\&{if} (\\{escape})\1\5
+${}\\{escape}\K\T{0};{}$\2\6
+\&{else} \&{if} (\\{quote})\5
+${}\{{}$\1\6
+\&{if} ${}(\\{lastchar}\E\\{quote}){}$\1\5
+${}\\{quote}\K\T{0};{}$\2\6
+\4${}\}{}$\2\6
+\&{else} \&{if} ${}(\\{lastchar}\E\.{'\\\\'}){}$\1\5
+${}\\{escape}\K\T{1};{}$\2\6
+\&{else} \&{if} ${}(\\{lastchar}\E\.{'"'}){}$\1\5
+${}\\{quote}\K\.{'"'};{}$\2\6
+\&{else} \&{if} ${}(\\{lastchar}\E\.{'\\''}){}$\1\5
+${}\\{quote}\K\.{'\\''};{}$\2\6
+\&{else} \&{if} ${}(\\{lastchar}\E\.{'\{'}){}$\1\5
+${}\\{nesting}\PP;{}$\2\6
+\&{else} \&{if} ${}(\\{lastchar}\E\.{'\}'}){}$\5
+${}\{{}$\1\6
+\&{if} ${}(\\{nesting}\MM\E\T{0}){}$\5
+${}\{{}$\1\6
+${}\\{fputc}(\\{lastchar},\39\\{outfile});{}$\6
+${}\\{fputc}(\.{'\\n'},\39\\{outfile});{}$\6
+${}\\{state}\K\.{RULES};{}$\6
+\&{return};\6
+\4${}\}{}$\2\6
+\4${}\}{}$\2\6
+${}\\{fputc}(\\{lastchar},\39\\{outfile});{}$\6
+\4${}\}{}$\2\5
+\&{while} ${}(\\{lastchar}\I\.{'\\n'});{}$\6
+\&{if} ${}(\\{gettkn}(\,)\Z\T{0}){}$\1\5
+\&{break};\2\6
+\&{if} ${}(\\{lastchar}\E\.{'\\n'}){}$\1\5
+\\{savechar}(\,);\2\6
+\\{putback}(\,);\6
+\4${}\}{}$\2\6
+\4${}\}{}$\2\par
+\fi
+
+\M{42}Process \CEE/ tail part.
+\Y\B\4\X36:Process functions\X${}\mathrel+\E{}$\6
+\&{void} \\{proc\_ctail}(\,)\1\1\2\2\6
+${}\{{}$\1\6
+${}\\{return\_line\_info}\K\T{1};{}$\6
+\\{copychars}(\,);\6
+\\{output\_effective\_line}(\,);\6
+\&{while} ${}(\\{gettkn}(\,)>\T{0}){}$\1\5
+\\{copychars}(\,);\2\6
+\4${}\}{}$\2\par
+\fi
+
+\M{43}Main function.
+\Y\B\&{int} \\{main}(\&{int} \\{argc}${},\39{}$\&{char} ${}{*}{*}\\{argv}){}$\1%
+\1\2\2\6
+${}\{{}$\1\6
+\&{int} \|c;\6
+\&{char} ${}{*}\\{outname}\K\.{"-"};{}$\7
+\X12:Set progname\X\6
+\&{while} ${}((\|c\K\\{getopt}(\\{argc},\39\\{argv},\39\.{"o:h"}))\I\.{EOF}){}$%
+\5
+${}\{{}$\1\6
+\&{switch} (\|c)\5
+${}\{{}$\1\6
+\4\&{case} \.{'o'}:\5
+${}\\{outname}\K\\{optarg};{}$\6
+\&{break};\6
+\4\&{case} \.{'h'}:\5
+\\{printf}(\.{"usage:\ yfmt\ [-o\ out}\)\.{file][-h]\ filename\\n}\)\.{"});\6
+\\{exit}(\T{0});\6
+\4\&{default}:\5
+\\{exit}(\T{1});\6
+\4${}\}{}$\2\6
+\4${}\}{}$\2\6
+\&{if} ${}(\\{optind}\E\\{argc}){}$\1\5
+\\{usage\_error}(\.{"Not\ enough\ argument}\)\.{s."});\2\6
+\&{else} \&{if} ${}(\\{argc}-\\{optind}>\T{1}){}$\1\5
+\\{usage\_error}(\.{"Too\ many\ arguments.}\)\.{"});\2\6
+\X7:Open input file\X\6
+\X8:Open output file\X\6
+\X5:Initialize locus variables\X\6
+\\{exit}(\\{convertor}(\,));\6
+\4${}\}{}$\2\par
+\fi
+
+
+\inx
+\fin
+\con

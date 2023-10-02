@@ -1,0 +1,23 @@
+\I\X13, 14, 15, 16, 17, 18, 25, 26, 27, 28, 31, 32, 35, 36, 37, 42, 55, 56, 57,
+58, 59, 60, 68, 69, 70, 93, 94:Auxiliary Functions\X
+\U2.
+\I\X73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85:Debugging support\X
+\U2.
+\I\X62, 64, 65, 86, 87:Diagnostic functions\X
+\U2.
+\I\X90, 91, 92:Disassembler support\X
+\U2.
+\I\X10, 11, 12, 63:Global variables\X
+\U2.
+\I\X9:Header files to include\X
+\U2.
+\I\X44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54:I/O functions\X
+\U2.
+\I\X66, 67, 71, 88:Interface functions\X
+\U2.
+\I\X19, 20, 21, 22, 23, 24, 29, 30, 33, 34, 38, 39, 40, 41, 43:MIX Instruction
+Handlers\X
+\U2.
+\I\X95:The main program\X
+\U2.
+

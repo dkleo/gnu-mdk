@@ -1,0 +1,465 @@
+2007-09-23  Sergey Poznyakoff  <gray@gnu.org.ua>
+
+	* src/mixterm.w (read_and_do_loop): Break on errors immediately
+	when in non-interactive mode.
+	* doc/mixsim.man, doc/mixal.man, doc/manpage.inc: New files
+	* doc/mix-small.jpg, doc/mix.jpg: New files
+	* doc/mix.texi: Finished update for this version.
+	* doc/Makefile.am: New rules to produce manpages. Update path to
+	gendocs.sh 
+	* doc/gendocs.sh: New file
+	* doc/fdl.texi: Fix formatting.
+	* doc/gendocs_template: Major rewrite.
+	* elisp/Makefile.am: Remove unfinished files from distribution.
+
+2007-09-22  Sergey Poznyakoff  <gray@gnu.org.ua>
+
+	* src/mixterm.w: Implement completion after SHELL and ASGN.
+	Fix completion of ADDRESS INFO.
+
+	* src/mixrun: Rewrite option handling part.
+	* doc/mix.texi: Update.
+
+	* src/mixsim.hw (mix_clock_t): New datatype.
+	(PRI_MIX_CLOCK): New macro.
+	* src/mixterm.w: Minor fixes.
+	* src/mixsim.w (struct io_device.clock): Change type to
+	mix_clock_t
+	(unit): Initialize clock to 0 (was -1)
+	(uclock): Change type to mix_clock_t
+	(nop, do_io): Set clock to 0 (was -1)
+	(dump_status,show_io): Use PRI_MIX_CLOCK to print mix_clock_t
+
+	(bp_hit): Fix calculations of ignore and pass counts.
+
+	* doc/mix.texi: Update
+	
+2007-09-21  Sergey Poznyakoff  <gray@gnu.org.ua>
+
+	* src/mixsim.hw, src/mixsim.w (list_bp): Take two arguments
+	* src/mixterm.w: INFO BREAK takes an optional argument and can be
+	prefixed by ADDRESS.
+	* doc/mix.texi: Update
+	* NEWS: Update
+
+	* src/mixterm.w (nextkn): Report ambiguous command verbs.
+	* doc/mix.texi: Update.
+	
+	* src/mixterm.w: Re-implement command reader.
+	New command SOURCE.
+	Before startup, read the file `.mixsim', if it
+	exists in the current working directory.
+	(token,buffer,curp,interactive): Removed
+	(mixterm_getc): Fix interrupt handling.
+	(mixterm_readline_init): The caller is responsible for checking
+	inp->interrupt before calling this function.
+	(mixterm_readline_internal): Take FILE pointer as an argument.
+	(mixterm_readline): Removed
+	(readline_reader,file_reader): New functions.
+	(nextkn): Take struct term_input as an argument. Handle #-comments.
+	(copy_token,getaddr,m_break,m_bt,m_address,m_delete)
+	(change_breakpoint_status,m_enable,m_disable,m_ignore,m_passcount)
+	(m_lb,m_lio,m_list,m_next,m_step,m_cont,m_asgn,m_go,m_dr,m_dm)
+	(m_dump,m_unasm,m_quit,m_shell,m_eol,m_err,m_help): Take struct
+	term_input as an argument.  
+	(struct disp.fun): Take struct term_input as an argument. 
+	(true_answer_p,vgetyn,getyn,m_source,source_file): New functions.
+	(read_and_do_loop): New function.
+	(mixterm): Try to load `.mixsim', if it exists. Use
+	read_and_do_loop().
+
+	* src/mixsim.w (bp_delete): Argument -1 means delete all
+	breakpoints.
+	(bp_enable): Likewise for enabling/disabling.
+	(list_bp): Print breakpoint enable status.
+	(show_io): Print I/O position, and operation.
+
+	* doc/mix.texi, NEWS: Updated.
+
+2007-09-20  Sergey Poznyakoff  <gray@gnu.org.ua>
+
+	* src/mixterm.w: Implement SHELL command
+	Rename MAXHITS to PASSCOUNT for compatibility with GDB.
+	* doc/mix.texi, NEWS: Update
+
+2007-09-19  Sergey Poznyakoff  <gray@gnu.org.ua>
+
+	* src/mixsim.w (run): Additional check for loc in range.
+	(spec): HLT raises halt in termmode.
+
+	* yfmt/Makefile.am, src/Makefile.am (DOC): Include *.idx and *.scn.
+	(CLEANFILES): Remove *.idx and *.scn.
+	* src/optab.awk: Fix text formatting.
+	* doc/mix.texi: Update
+	* examples/Makefile.am (EXTRA_DIST): Rename mistery.mix to mystery.mix.
+
+	* src/mixal.yw (listing): Print also implicitly generated
+	locations.
+	* doc/mix.texi: Update
+	* doc/macros.texi: Likewise
+	* elisp/mix-mode.el (mix-upcase-self-insert): Remove a left-over
+	usage of mix-tab-stop-list.
+	* examples/mistery.mix: Fix the ...
+	* examples/mystery.mix: ...spelling
+
+	* yfmt/yfmt.w (proc_cbody): Bugfix: put '\n' back explicitely,
+	because gettkn() does not do it. This fixes outputting of empty
+	lines in C blocks.
+
+2007-09-18  Sergey Poznyakoff  <gray@gnu.org.ua>
+
+	* src/mixal.yw: --list-file implies --list.
+	* src/symbol.w: Fix comments.
+	* .emacsrc: Update auto-mode-alist.
+	* tests/Makefile.am, doc/Makefile.am, elisp/cweb-mode.el,
+	elisp/mixsim.el, elisp/Makefile.am, elisp/mix-mode.el: Update
+	copyright statement.
+	* doc/mix.texi: Update.
+	* doc/macros.texi: New file.
+
+2007-09-17  Sergey Poznyakoff  <gray@gnu.org.ua>
+
+	* src/mixal.yw, src/lex.lw, src/mixasm.hw: Use warning to display
+	warnings and parse_error to display errors. Do not output card
+	deck if errors were detected (unless `force' is set).
+	* elisp/mix-mode.el: Optionally upcase input falling in the first
+	three columns.
+
+	* README-alpha: New file
+	* .emacsrc, doc/mix.texi: Update
+	* examples/hello.mix, examples/mistery.mix, examples/p.mix: New
+	files. 
+	* examples/Makefile.am: Add new examples.
+
+2007-09-15  Sergey Poznyakoff  <gray@gnu.org.ua>
+
+	* src/mixterm.w: Improve completion. Fix some minor bugs.
+
+	* NEWS, README: Update
+	* src/mixsim.hw,src/mixterm.w,src/mixsim.w: Improve terminal
+	command set.
+	* src/mixal.yw (main): Create list file in the current working
+	directory.
+	* src/lex.lw: Add missing includes.
+	* src/mixasm.hw: Add new prototypes.
+	
+2007-09-13  Sergey Poznyakoff  <gray@gnu.org.ua>
+
+	* src/mixal.yw: New option --list-file. New option --output.
+
+	Use gnulib functions.
+
+	Relicense under GPLv3.
+
+2005-04-19  Sergey Poznyakoff  <gray@Mirddin.farlep.net>
+
+	* src/Makefile.am (mixal_SOURCES): Rename gram.y to mixal.y
+	(BUILT_SOURCES): Add mixsim.h
+	(WEBFILES): Divided into three groups.
+	(EXTRA_DIST): Rename gram.h to mixal.h
+	(gram.y,lex.l,mix.h,mixasm.h,mixsim.c,mixal,c)
+	(mixal.o): Removed explicit rules
+	(mixal.h mixal.c): New rule
+	(.hw.h,.yw.y,.lw.l,.hw.tex,.lw.tex,.yw.tex): New rules
+	* src/mixsim.w: Minor formatting hack
+
+	* src/mixsim.h: Removed
+	* src/mixsim.hw: New file
+	
+	* src/mixlex.w: Renamed to...
+	* src/lex.lw: ... this.
+	* src/mix.w: Renamed to...
+	* src/mix.hw: ... this.
+	* src/mixal.w: Renamed to...
+	* src/mixal.yw: ... this.
+	* src/mixasm.w: Renamed to...
+	* src/mixasm.hw: ... this.
+
+2005-04-18  Sergey Poznyakoff  <gray@Noldor.runasimi.org>
+
+	* yfmt: New directory
+	* yfmt/yfmt.w: New file
+	* yfmt/Makefile.am: New file
+	* yfmt/.cvsignore: New file
+	* Makefile.am: Add yfmt
+	* configure.ac: Likewise
+	* elisp/cweb-mode.el (cweb-edit-scope): Position the point in edit
+	window to the same place it has in the main one.
+	* src/Makefile.am: optab.c and lex.l are now built from CWEB files.
+	Postprocess *.y and *.l using yfmt.
+	
+	* src/lex.l: Removed. Automatically generated from mixlex.w
+	* src/mixlex.w: Updated.
+	* src/optab.awk: Rewritten to produce CWEB source.
+	* src/.cvsignore: Updated.
+	
+2005-04-15  Sergey Poznyakoff  <gray@Mirddin.farlep.net>
+
+	* src/mixal.w: Minor change.
+	* src/mixlex.w: New file. An attempt to represent lex source in
+	a cweb file.
+
+2005-04-12  Sergey Poznyakoff  <gray@Mirddin.farlep.net>
+
+	* src/Makefile.am: Create mixasm.h from mixasm.w
+	* src/mixasm.h: Removed
+	* src/mixasm.w: New file.
+	* src/lex.l (reset_lex): New function.
+	* src/mix.w (mixalf): External declaraction
+	* src/mixal.w (alf): Removed. Use global mixalf instead. All
+	callers updated.
+	(statement_list): Add error catching rule
+	(div_mix): Removed spurious variable s.
+	(error_count): New variable.
+	(warning_l): Increase error_count
+	(usage): Updated.
+	(main): New command line option -f.
+	Exit with non-zero status on assembly errors.
+        Bail out if the program does not end with END statement.
+	* src/mixrun: Handle -h option.
+	* src/mixsim.w: Use global mixalf[]
+	* src/optab.awk: Create mixalf array.
+	* src/symbol.w: Declare struct list here, instead of the header
+	file.
+	* src/.cvsignore: Updated.
+	* README: Updated.
+	
+2005-04-12  Sergey Poznyakoff  <gray@Mirddin.farlep.net>
+
+	* src/Makefile.am: Generate yacc source from mixal.w
+	* src/lex.l: Include gram.h
+	(<ADDRESS>{asterisk}): Reverted yesterday's change
+	* src/mixal.y: Removed. Rewritten as WEB file mixal.w
+	* srx/mixal.w: New file.
+	* src/mixasm.h (struct Symbol): Minor fix
+	* src/.cvsignore: Updated
+
+	* elisp/cweb-mode.el (cweb-line-syntax): Accept @\n as a tex-part
+	starter.
+	
+	Source tree up to this point is tagged mix_with_mixal_y.
+	
+2005-04-12  Sergey Poznyakoff  <gray@Noldor.runasimi.org>
+
+	* configure.ac (--with-indent): New option
+	* elisp/cweb-mode.el: Implement section addition and removal.
+	Several bugfixes.
+	* src/lex.l (<ADDRESS>{asterisk}): Return '*' for consistency
+	with precedence rules in mixal.y
+	* src/mixal.y (expression): Likewise.
+
+2005-04-11  Sergey Poznyakoff  <gray@Noldor.runasimi.org>
+
+	* elisp/cweb-mode.el (cweb-edit-scope): Fix typo.
+	Use tex-mode for tex-sections. Advance beginning
+	position by one line for C sections to preserve
+	the initial @c.
+
+2005-04-11  Sergey Poznyakoff  <gray@Mirddin.farlep.net>
+
+	* elisp/cweb-mode.el: New file. Provides Emacs major
+	mode for editing CWEB files.
+
+2005-04-11  Sergey Poznyakoff  <gray@Noldor.runasimi.org>
+
+	* src/lex.l: Removed hardcoded opcodes.
+	(copy_alf): Changed return type to char*.
+	(<OP>{opcode}): Replaced with <OP>{symbol} rule
+	ALF token is now bound to yylval.literal
+	* src/mixal.y (opcode): Replaced with opfield
+	(eval_op,eval_f): Removed. All callers changed.
+	(%union.opcode): Renamed to %union.literal
+	(%union.opcode): New member
+	(PSEUDO, ALF, pseudo): Change union binding. All callers updated.
+	(init_keywords): New function
+	* src/mixasm.h (lookup_or_install): Removed
+	(lookup_op): New proto.
+	* src/symbol.w: Rewritten to hold both MIXAL keywords and program
+	symbols.
+	* tests/Makefile.amo: Add easter.at
+	* tests/testsuite.at: Likewise.
+	* tests/easter.at: New test.
+	* tests/atlocal.in (EXAMPLES): New variable
+	* tests/bref.at: Minor fix
+	* tests/fref.at: Likewise.
+	* tests/ifref.at: Likewise.
+	* tests/lbref.at: Likewise.
+	* tests/lfref.at: Likewise.
+	* tests/lref.at: Likewise.
+	* tests/version.at: Likewise.
+
+2005-04-10  Sergey Poznyakoff  <gray@Noldor.runasimi.org>
+
+	* src/lex.l: Add copyleft statement.
+	(ptr,alfbuf): Removed unused variables.
+	(copy_alf): Copy into yylval.opcode
+	(afteralf): Changed semantics: the variable keeps the first
+	character of the recent ALF constant. All callers updated.
+	* src/mixal.y: Add copyleft statement.
+	(word,s,p): Remove unused variables;
+	(%union): Omit spurious struct keyword. New member opcode.
+	(OPCODE, PSEUDO, ALF): Change union binding. All callers updated.
+	(op, pseudo): Likewise.
+	* src/mixasm.h: More comments.
+	
+2005-04-10  Sergey Poznyakoff  <gray@Noldor.runasimi.org>
+
+	* src/Makefile.am (.w.c): Add -psl to indent invocation, otherwise
+	it spoils line numbering
+	* src/mixal.y (main): Handle --help and --version. Fixed diagnosing
+	invalid options: it is handled by getopt.
+	* src/mixsim.w: Likewise.
+	* src/mixrun: Rewritten
+
+2005-04-10  Sergey Poznyakoff  <gray@Noldor.runasimi.org>
+	
+	* Makefile.am: Add tests
+	* configure.ac: Likewise
+
+	* tests: New directory
+	* tests/Makefile.am: New file
+	* tests/.cvsignore: New file
+	* tests/atlocal.in: New file
+	* tests/bref.at: New file
+	* tests/fref.at: New file
+	* tests/ifref.at: New file
+	* tests/lbref.at: New file
+	* tests/lfref.at: New file
+	* tests/lref.at: New file
+	* tests/testsuite.at: New file
+	* tests/version.at: New file
+	
+	* src/Makefile.am (AM_YFLAGS): Add -v
+	* src/mixal.y (symlist): Removed
+	(statement_list): Allow multiple newlines between statements
+	(main): Exit with 0. Do not call sort_symbols()
+	(dumpsymtab): Use new sort_symbols
+	(symbols): Rewrite using iterator
+	* src/mixasm.h (lookup_or_install): New prototype
+	(sort_symbols): Changed return type
+	(Symbol.next): Removed.
+	* src/symbol.w: Rewritten using hash table instead of
+	singly-linked list.
+
+2005-04-09  Sergey Poznyakoff  <gray@Noldor.runasimi.org>
+
+	* doc/.cvsignore: Updated
+	* elisp/.cvsignore: Updated
+	* examples/.cvsignore: Updated
+	* src/Makefile.am (EXTRA_DIST): Remove extra space after WEBFILES
+	* src/lex.l: Rewritten handling of local labels
+	* src/mixal.y: Likewise
+	* src/mix.w: Add header statement
+	* src/mixsim.w: Likewise
+	* src/mixasm.h (localref): Rewritten, all callers changed
+	* src/mixterm.w: Minor formatting fixes.
+	* src/symbol.c: Removed: rewritten in Web
+	* src/symbol.w: New file
+
+2005-04-09  Sergey Poznyakoff  <gray@Noldor.runasimi.org>
+	
+	* .cvsignore: Updated
+
+	* mixterm.w, optab.awk, lex.l, mix.w, mixal.optab,
+	mixal.y, mixasm.h, mixrun, mixsim.h, mixsim.w: Moved to src/
+
+	* src/Makefile.am: Added to the repository
+
+	* elisp/.cvsignore, examples/.cvsignore: Added to the repository
+
+	* examples/Makefile.am, examples/easter.mix: Added to the repository
+
+	* doc/.cvsignore: Added to the repository
+
+	* doc/Makefile.am, doc/gendocs_template, doc/mix.texi: Added to the repository
+
+	* elisp/Makefile.am, elisp/mix-mode.el, elisp/mixsim.el: Added to the repository
+
+	* .cvsignore: Updated
+
+	* src/mix.w, src/mixsim.w, src/mixterm.w, mix/src/symbol.c, src/symbol.c,
+	src/lex.l, src/mixal.optab, src/mixal.y, src/mixasm.h, src/mixrun,
+	src/optab.awk: Moved from ../
+
+	* NEWS: Added contents of the original CHANGES file
+
+	* Makefile.am, configure.ac: Switched to deep layout
+
+	* COPYING: Removed initial stanza. It is pure GPL now.
+
+	* AUTHORS, TODO: Minor formatting fixes.
+
+2005-03-31  Sergey Poznyakoff  <gray@Noldor.runasimi.org>
+
+	* Makefile.am (pdfdoc): Renamed to pdf
+	(texdoc): Renamed to pdf
+	(mix.h): New rule
+	* configure.ac: Detect the presence of INDENT
+	* mix.h: Removed. Auto-generated file
+	* mix.w: New file
+	* mixal.y: Removed defines common to both programs
+	* mixsim.w: Likewise.
+	* mixterm.w: Improved formatting
+	* .cvsignore: New file
+	
+2005-03-31  Sergey Poznyakoff  <gray@Ulysses.farlep.net>
+
+	* configure.ac: Added to the repository.
+	* Makefile.am (AM_YFLAGS): Add -t
+	(AM_LFLAGS): New variable
+	* lex.l: Bugfix: do not directly modify yytext.
+	Properly diagnose stray characters after instructions.
+	Inform the user if a literal identifier is preceeded by
+	too many (>2) spaces.
+	(init_lex): New function
+	* mixal.y (BOGUS): New token
+	(version): Removed.
+	(LIST_SUFFIX): New define
+	(main): Do not directly assign to yyin, use init_lex instead.
+	Handle -d option: set up debugging level
+	Use PACKAGE_STRING when printing program version
+	Form list file name on the base of the input file name.
+	* mixasm.h (init_lex): New prototype
+	* mixsim.w (version): Removed
+	(main): Use PACKAGE_STRING when printing program version
+	* symbol.c: Include stdio.h
+	* mixrun: Updated
+	
+2005-03-30  Sergey Poznyakoff  <gray@Noldor.runasimi.org>
+
+	List of changes to the original mix package:
+
+	* mixal.y: Use operator table generated from mixal.optab.
+	(create_temp): Dynamically allocate file name. Use mkstemp if
+	available.
+	Minor changes to format strings (use l [ell] qualifier where
+	arguments are long).
+	Minor changes to accomodate for the configuration suite.
+	* lex.l (yywrap): New function, to avoid using -ll
+	Minor changes to accomodate for the configuration suite.
+	* mixsim.w: Resectioned. Added missing devices. Added tty
+	device.
+	Added base debugging support (MIX line debugger).
+	* mixal.h: Renamed to mixasm.h to avoid being overwritten when
+	making mixal.c
+
+	* mixterm.w: New file. Implements MIX terminal mode
+	* mix.h: New file. Definitions common for all sources
+	* mixsim.h: Mix simulator definitions.
+	* symbol.c: Converted to ANSI C
+	
+	* configure.ac: New file
+	* Makefile.am: Likewise
+	* NEWS: Likewise
+	* AUTHORS: Likewise
+	* COPYING: Likewise
+	* optab.awk: New file
+	* mixal.optab: New file
+
+
+
+Local Variables:
+mode: change-log
+version-control: never
+End:
+	

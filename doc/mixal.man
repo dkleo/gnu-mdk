@@ -1,0 +1,11 @@
+.\" MIXAL man page
+.so manpage.inc
+.TH mixal 1 "\*(DA" "MIX tools"
+.SH NAME
+mixal - A MIXAL assembler.
+.SH SYNOPSIS
+\fBmixal\fR [\fBOPTIONS\fR] [input-file]
+.SH DESCRIPTION
+.De mixal
+.SH AUTHORS
+\*(AU

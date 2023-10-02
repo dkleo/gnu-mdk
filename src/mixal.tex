@@ -1,0 +1,1077 @@
+\input cwebmac
+% This file is part of MIX
+% Copyright (C) 1998, 1999, 2000 Douglas Laing
+% Copyright (C) 2000, 2005, 2007 Sergey Poznyakoff
+%
+% This program is free software; you can redistribute it and/or
+% modify it under the terms of the GNU General Public License as
+% published by the Free Software Foundation; either version 3, or (at
+% your option) any later version.
+%
+% This program is distributed in the hope that it will be useful, but
+% WITHOUT ANY WARRANTY; without even the implied warranty of
+% MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+% General Public License for more details.
+%
+% You should have received a copy of the GNU General Public License
+% along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+
+
+
+
+
+
+
+\N{1}{1}MIXAL assembler.
+
+\Y\fi
+
+\N{2}{2}Leading C section.
+\Y\B$\MOD$ $\{{}$\6
+\8\#\&{ifdef} \.{HAVE\_CONFIG\_H}\6
+\8\#\&{include} \.{<config.h>}\6
+\8\#\&{endif}\6
+\8\#\&{include} \.{<stdlib.h>}\6
+\8\#\&{include} \.{<stdio.h>}\6
+\8\#\&{include} \.{<stdarg.h>}\6
+\8\#\&{include} \.{<sys/stat.h>}\6
+\8\#\&{include} \.{<errno.h>}\6
+\8\#\&{include} \.{<unistd.h>}\6
+\8\#\&{include} \.{<fcntl.h>}\6
+\8\#\&{include} \.{<ctype.h>}\6
+\8\#\&{include} \.{<mix.h>}\6
+\8\#\&{include} \.{<mixasm.h>}\6
+\8\#\&{include} \.{"getopt.h"}\6
+\8\#\&{include} \.{"string.h"}\6
+\8\#\&{include} \.{"error.h"}\6
+\8\#\&{include} \.{"progname.h"}\6
+\8\#\&{include} \.{"xalloc.h"}\par
+\fi
+
+\M{3}
+\Y\B\4\D$\\{update\_memory}(\|A)$ \5
+$\\{memory}[\\{location\_counter}]\K(\|A);{}$\6
+${}\\{lines}[\\{lineno}]\K\\{location\_counter}\PP{}$;\par
+\B\4\D$\.{LIST\_SUFFIX}$ \5
+\.{".lst"}\par
+\fi
+
+\M{4}Global variables.
+\Y\B\ATH\6
+\&{char} ${}{*}\\{source\_file}\K\NULL{}$;\C{ Name of the source file }\6
+\&{char} ${}{*}\\{listfile}{}$;\C{ Name of the source listing file }\6
+\&{FILE} ${}{*}\\{lst}{}$;\C{ Listing file stream }\6
+\&{char} ${}{*}\\{outfile}{}$;\C{ Name of the output file }\6
+\&{int} \\{lineno}${}\K\T{1}{}$;\C{ Current line in the source file }\6
+\&{int} \\{location\_counter}${}\K\T{0}{}$;\C{ Current memory cell index }\6
+\&{int} \\{start\_location}${}\K\.{MEMSIZE}{}$;\C{ Program start location }\6
+\&{unsigned} \\{memory}[\.{MEMSIZE}];\C{ \.{MIX} memory array }\6
+\&{int} \\{lines}[\.{MEMSIZE}];\C{ source line \PB{\hbox{$\Rightarrow$}} memory
+location index }\6
+\&{int} \\{opfield};\C{ Keep \PB{\|F} field of the instruction being processed
+}\6
+\&{int} \\{error\_count};\C{ Number of errors during this assembly }\par
+\fi
+
+\M{5}Variables controlled by command line options
+\Y\B\&{int} \\{list}${}\K\T{0}{}$;\C{ -l: Produce listing }\6
+\&{int} \\{xref}${}\K\T{0}{}$;\C{ -x: Produce cross-reference listing }\6
+\&{int} \\{writeraw}${}\K\T{0}{}$;\C{ -r: Write raw code }\par
+\fi
+
+\M{6}Declarate functions defined in the C trailer.
+\Y\B\&{FILE} ${}{*}{}$\\{create\_temp}(\&{char} ${}{*}\\{tmpl});{}$\6
+\&{int} \\{word\_s}(\&{unsigned} \|w);\6
+\&{void} \\{symbols}(\&{void});\6
+\&{void} \\{end\_routine}(\&{int} \\{start});\6
+\&{int} \\{num}(\&{char} ${}{*}\\{text});{}$\6
+\&{void} \\{listing}(\,);\6
+\&{void} \\{dumpsymtab}(\&{FILE} ${}{*}\\{fp});{}$\6
+\&{void} \\{resolve\_forward}(\&{Symbol} ${}{*}\|f);{}$\6
+\&{unsigned} \\{add\_mix}(\&{unsigned} \|a${},\39{}$\&{unsigned} \|b);\6
+\&{unsigned} \\{sub\_mix}(\&{unsigned} \|a${},\39{}$\&{unsigned} \|b);\6
+\&{unsigned} \\{div\_mix}(\&{unsigned} \|a${},\39{}$\&{unsigned} \|b);\6
+\&{unsigned} \\{mul\_mix}(\&{unsigned} \|a${},\39{}$\&{unsigned} \|b);\6
+\&{unsigned} \\{w\_eval}(\&{unsigned} \|a${},\39{}$\&{unsigned} \|b${},\39{}$%
+\&{int} \|f);\par
+\fi
+
+\M{7}Leading C section ends here
+\Y\B$\MOD$ $\}{}$\par
+\fi
+
+\N{2}{8}\.{YACC} DECLARATIONS.
+
+\fi
+
+\M{9}\.{Yacc} stack union.
+\Y\B$\MOD$ \&{union} ${}\{{}$\1\6
+\&{unsigned} \\{val};\C{ Numeric value. }\6
+\&{Symbol} ${}{*}\\{symp}{}$;\C{ Symblol }\6
+\&{char} ${}{*}\\{txt}{}$;\C{ Comment text }\6
+\&{char} \\{literal}[\T{6}];\C{ Literal value }\6
+\&{struct} \\{mix\_op} ${}{*}\\{opcode};{}$\2\6
+${}\}{}$\par
+\fi
+
+\M{10}Tokens.
+\Y\B$\MOD$ $\&{token}\langle\\{symp}\rangle{}$ \.{DEFINED\_SYMBOL}\6
+$\MOD$ $\&{token}\langle\\{symp}\rangle{}$ \.{LOCAL\_SYMBOL}\6
+$\MOD$ $\&{token}\langle\\{symp}\rangle{}$ \.{FUTURE\_REFERENCE}\6
+$\MOD$ $\&{token}\langle\\{symp}\rangle{}$ \.{LOC}\6
+$\MOD$ $\&{token}\langle\\{symp}\rangle{}$ \.{END}\6
+$\MOD$ $\&{token}\langle\\{val}\rangle{}$ \.{UNDEF}\6
+$\MOD$ $\&{token}\langle\\{val}\rangle{}$ \.{DEF}\6
+$\MOD$ $\&{token}\langle\\{val}\rangle{}$ \.{NUMBER}\6
+$\MOD$ $\&{token}\langle\\{val}\rangle{}$ \.{ASTERISK}\6
+$\MOD$ $\&{token}\langle\\{txt}\rangle{}$ \.{TEXT}\6
+$\MOD$ $\&{token}\langle\\{literal}\rangle{}$ \.{ALF}\.{PSEUDO}\6
+$\MOD$ $\&{token}\langle\\{opcode}\rangle{}$ \.{OPCODE}\6
+$\MOD$ \&{token} \.{BOGUS}\6
+$\MOD$ \&{left} \.{'-'}\.{'+'}\6
+$\MOD$ \&{left} \.{'*'}\.{'/'}\6
+$\MOD$ \&{left} \.{':'}\.{SLASHES}\6
+$\MOD$ \&{nonassoc} \.{UMINUS}\par
+\fi
+
+\M{11}Non-terminal symbols.
+\Y\B$\MOD$ $\\{type}<\\{val}>{}$\\{expression}\6
+${}\MOD\\{type}<\\{val}>{}$\\{atomic\_expression}\6
+${}\MOD\\{type}<\\{val}>\\{a\_part}\\{i\_part}\\{f\_part}{}$\\{w\_value}\6
+${}\MOD\\{type}<\\{symp}>{}$\\{literal\_constant}\6
+${}\MOD\\{type}<\\{symp}>{}$\\{label}\6
+${}\MOD\\{type}<\\{opcode}>{}$\\{op}\6
+${}\MOD\\{type}<\\{literal}>{}$\\{pseudo}\6
+\vb{\%\%}\par
+\fi
+
+\N{2}{12}GRAMMAR.
+
+\Y\fi
+
+\M{13}A \.{MIX} program consists of statements, separated by newlines.
+\Y\B\4\\{statement\_list}:\5
+\\{statement}\\{comment}\\{eol}\6
+${}\OR\\{statement\_list}\\{statement}\\{comment}{}$\\{eol}\6
+;\par
+\fi
+
+\M{14}Error recovery occurs at the topmost level, when a newline character is
+read.
+\Y\B\4\\{statement\_list}:\5
+\\{statement\_list}\\{error}\\{eol}\1\1\2\2\6
+${}\{{}$\1\6
+\\{yyerrok};\6
+\\{yyclearin};\6
+\\{reset\_lex}(\,);\6
+\4${}\}{}$\2\par
+\fi
+
+\M{15}Any number of newlines is allowed as statement separator.
+\Y\B\4\\{eol}:\5
+\.{'\\n'}\1\1\2\2\6
+${}\{{}$\1\6
+${}\\{lineno}\PP;{}$\6
+\4${}\}{}$\2\6
+$\OR$ \\{eol}\.{'\\n'}\1\1\2\2\6
+${}\{{}$\1\6
+${}\\{lineno}\PP;{}$\6
+\4${}\}{}$\2\7
+;\par
+\fi
+
+\M{16}This statement is assembled into a \.{MIX} instruction.
+\Y\B\4\\{statement}:\5
+\\{label}\\{op}\\{a\_part}\\{i\_part}\\{f\_part}\1\1\2\2\6
+${}\{{}$\1\6
+\&{unsigned} \\{word};\7
+${}\\{word}\K\.{\$2}\MG\|c\OR\.{SIGN}(\.{\$3})\OR\.{MAG}(\.{\$3})*\.{B3}\OR\.{%
+\$4}*\.{B2}\OR\.{\$5}*\.{B1};{}$\6
+\\{update\_memory}(\\{word});\6
+\4${}\}{}$\2\7
+;\par
+\fi
+
+\M{17}A {\it pseudo-statement\/} is an instruction to assembler itself.
+\Y\B\4\\{statement}:\5
+\\{label}\\{pseudo}\\{w\_value}\1\1\2\2\6
+${}\{{}$\1\6
+\&{if} ${}(\R\\{strcmp}(\.{\$2},\39\.{"EQU"})){}$\5
+${}\{{}$\C{ if no label wizard debug }\1\6
+\&{if} ${}(\.{\$1}\E\NULL){}$\1\5
+\\{dumpsymtab}(\\{stderr});\2\6
+\&{else}\1\5
+${}\.{\$1}\MG\\{value}\K\.{\$3};{}$\2\6
+\4${}\}{}$\2\6
+\&{else} \&{if} ${}(\R\\{strcmp}(\.{\$2},\39\.{"ORIG"})){}$\5
+${}\{{}$\1\6
+${}\\{location\_counter}\K\\{word\_s}(\.{\$3});{}$\6
+\4${}\}{}$\2\6
+\&{else} \&{if} ${}(\R\\{strcmp}(\.{\$2},\39\.{"CON"})){}$\5
+${}\{{}$\1\6
+\\{update\_memory}(\.{\$3});\6
+\4${}\}{}$\2\6
+\&{else} \&{if} ${}(\R\\{strcmp}(\.{\$2},\39\.{"END"})){}$\5
+${}\{{}$\1\6
+\&{if} ${}(\.{\$1}\I\NULL){}$\1\5
+${}\.{\$1}\MG\\{type}\K\.{END};{}$\2\6
+${}\\{start\_location}\K\.{\$3};{}$\6
+\.{YYACCEPT};\C{ Ignore any input after END statement }\6
+\4${}\}{}$\2\6
+\4${}\}{}$\2\6
+$\OR$ \\{label}\.{ALF}\1\1\2\2\6
+${}\{{}$\1\6
+\\{update\_memory}(\\{num}(\.{\$2}));\6
+\4${}\}{}$\2\6
+$\OR$ \.{ASTERISK}\1\1\2\2\6
+${}\{{}$\C{ A no-op. Introduces a comment line. }\1\6
+;\6
+\4${}\}{}$\2\7
+;\par
+\fi
+
+\M{18}
+\Y\B\4\\{label}:\C{ none }\6
+${}\{{}$\1\6
+${}\.{\$\$}\K\NULL;{}$\6
+\4${}\}{}$\2\6
+$\OR$ \.{LOC}\1\1\2\2\6
+${}\{{}$\1\6
+\&{if} ${}(\\{localref}(\.{\$1}\MG\\{name},\39\.{"FB"})){}$\5
+${}\{{}$\1\6
+\\{yyerror}(\.{"invalid\ label"});\6
+\.{YYERROR};\6
+\4${}\}{}$\2\6
+${}\.{\$1}\MG\\{type}\K\.{DEF};{}$\6
+${}\.{\$1}\MG\\{line}\K\\{lineno};{}$\6
+${}\.{\$1}\MG\\{value}\K\\{location\_counter};{}$\6
+${}\.{\$\$}\K\.{\$1};{}$\6
+\4${}\}{}$\2\7
+;\par
+\fi
+
+\M{19}
+\Y\B\\{comment}:\C{ nothing }\6
+$\OR$ \.{TEXT}\1\1\2\2\6
+${}\{{}$\1\6
+;\6
+\4${}\}{}$\2\7
+;\par
+\fi
+
+\M{20}
+\Y\B\4\\{op}:\5
+\.{OPCODE}\1\1\2\2\6
+${}\{{}$\1\6
+${}\\{opfield}\K\.{\$1}\MG\|f{}$;\C{ Preserve opcode for \PB{\\{f\_part}} }\6
+\4${}\}{}$\2\7
+;\par
+\fi
+
+\M{21}\PB{\T{5}} is the default \PB{\|F} field for many \.{MIXAL} instructions.
+Actually, opfield is
+not needed for {\it pseudo-instructions}, it is here for the sake of
+completeness.
+\Y\B\4\\{pseudo}:\5
+\.{PSEUDO}\1\1\2\2\6
+${}\{{}$\1\6
+${}\\{opfield}\K\T{5}{}$;\C{ Preserve opfield for \PB{\\{f\_part}} }\6
+\4${}\}{}$\2\7
+;\par
+\fi
+
+\M{22}Compute arithmetic expressions.
+\Y\B\\{expression}: $\\{atomic\_expression}\OR\.{'+'}\\{atomic\_expression}$ $%
+\MOD$ \&{prec} \.{UMINUS}\1\1\2\2\6
+${}\{{}$\1\6
+${}\.{\$\$}\K\.{\$2};{}$\6
+\4${}\}{}$\2\6
+$\OR$ \.{'-'}\\{atomic\_expression} $\MOD$ \&{prec} \.{UMINUS}\1\1\2\2\6
+${}\{{}$\1\6
+${}\.{\$\$}\K\.{\$2}\XOR\.{MINUS};{}$\6
+\4${}\}{}$\2\6
+$\OR$ \\{expression}\.{'+'}\\{atomic\_expression}\1\1\2\2\6
+${}\{{}$\1\6
+${}\.{\$\$}\K\\{add\_mix}(\.{\$1},\39\.{\$3});{}$\6
+\4${}\}{}$\2\6
+$\OR$ \\{expression}\.{'-'}\\{atomic\_expression}\1\1\2\2\6
+${}\{{}$\1\6
+${}\.{\$\$}\K\\{sub\_mix}(\.{\$1},\39\.{\$3});{}$\6
+\4${}\}{}$\2\6
+$\OR$ \\{expression}\.{ASTERISK}\\{atomic\_expression} $\MOD$ \&{prec} \.{'*'}%
+\1\1\2\2\6
+${}\{{}$\1\6
+${}\.{\$\$}\K\\{mul\_mix}(\.{\$1},\39\.{\$3});{}$\6
+\4${}\}{}$\2\6
+$\OR$ \\{expression}\.{'/'}\\{atomic\_expression}\1\1\2\2\6
+${}\{{}$\1\6
+${}\.{\$\$}\K\\{div\_mix}(\.{\$1},\39\.{\$3});{}$\6
+\4${}\}{}$\2\6
+$\OR$ \\{expression}\.{SLASHES}\\{atomic\_expression}\1\1\2\2\6
+${}\{{}$\1\6
+${}\.{\$\$}\K\\{mul\_mix}(\.{\$1},\39\.{B5}/\.{MAG}(\.{\$3}));{}$\6
+\4${}\}{}$\2\6
+$\OR$ \\{expression}\.{':'}\\{atomic\_expression}\1\1\2\2\6
+${}\{{}$\1\6
+${}\.{\$\$}\K\\{add\_mix}(\\{mul\_mix}(\.{\$1},\39\T{8}),\39\.{\$3});{}$\6
+\4${}\}{}$\2\7
+;\par
+\fi
+
+\M{23}
+\Y\B\4\\{atomic\_expression}:\5
+\.{NUMBER}\6
+${}\OR\.{ASTERISK}{}$\1\1\2\2\6
+${}\{{}$\1\6
+${}\.{\$\$}\K\\{location\_counter};{}$\6
+\4${}\}{}$\2\6
+$\OR$ \.{DEFINED\_SYMBOL}\1\1\2\2\6
+${}\{{}$\1\6
+${}\.{\$\$}\K\.{\$1}\MG\\{value};{}$\6
+\&{if} (\\{xref})\1\5
+${}\.{\$1}\MG\\{xref}\K\\{addref}(\.{\$1}\MG\\{xref},\39\\{location\_counter},%
+\39\\{lineno});{}$\2\6
+\4${}\}{}$\2\6
+$\OR$ \.{LOCAL\_SYMBOL}\1\1\2\2\6
+${}\{{}$\1\6
+${}\.{\$\$}\K\.{\$1}\MG\\{value};{}$\6
+\4${}\}{}$\2\7
+;\par
+\fi
+
+\M{24}Process {\it address part\/} of an instruction.
+\Y\B\4\\{a\_part}:\C{ empty }\6
+${}\{{}$\1\6
+${}\.{\$\$}\K\T{0};{}$\6
+\4${}\}{}$\2\6
+$\OR$ $\\{expression}\OR\.{FUTURE\_REFERENCE}{}$\1\1\2\2\6
+${}\{{}$\1\6
+${}\.{\$1}\MG\\{reflist}\K\\{addref}(\.{\$1}\MG\\{reflist},\39\\{location%
+\_counter},\39\\{lineno});{}$\6
+\&{if} (\\{xref})\1\5
+${}\.{\$1}\MG\\{xref}\K\\{addref}(\.{\$1}\MG\\{xref},\39\\{location\_counter},%
+\39\\{lineno});{}$\2\6
+${}\.{\$\$}\K\T{0}{}$;\C{ Address part will be fixed later }\6
+\4${}\}{}$\2\6
+$\OR$ \\{literal\_constant}\1\1\2\2\6
+${}\{{}$\1\6
+${}\.{\$\$}\K\T{0}{}$;\C{ Address part will be fixed later }\6
+\4${}\}{}$\2\7
+;\par
+\fi
+
+\M{25}{\it index part\/} of an instruction.
+\Y\B\4\\{i\_part}:\C{ empty }\6
+${}\{{}$\1\6
+${}\.{\$\$}\K\T{0};{}$\6
+\4${}\}{}$\2\6
+$\OR$ \.{','}\\{expression}\1\1\2\2\6
+${}\{{}$\1\6
+${}\.{\$\$}\K\.{\$2};{}$\6
+\4${}\}{}$\2\7
+;\par
+\fi
+
+\M{26}{\it field specification\/} of an instruction.
+\Y\B\4\\{f\_part}:\C{ empty }\6
+${}\{{}$\1\6
+${}\.{\$\$}\K\\{opfield};{}$\6
+\4${}\}{}$\2\6
+$\OR$ \.{'('}\\{expression}\.{')'}\1\1\2\2\6
+${}\{{}$\1\6
+${}\.{\$\$}\K\.{\$2};{}$\6
+\4${}\}{}$\2\7
+;\par
+\fi
+
+\M{27}
+\Y\B\4\\{w\_value}:\5
+\\{expression}\\{f\_part}\1\1\2\2\6
+${}\{{}$\1\6
+${}\.{\$\$}\K\\{w\_eval}(\T{0},\39\.{\$1},\39\.{\$2});{}$\6
+\4${}\}{}$\2\6
+$\OR$ \\{w\_value}\.{','}\\{expression}\\{f\_part}\1\1\2\2\6
+${}\{{}$\1\6
+${}\.{\$\$}\K\\{w\_eval}(\.{\$1},\39\.{\$3},\39\.{\$4});{}$\6
+\4${}\}{}$\2\7
+;\par
+\fi
+
+\M{28}
+\Y\B\4\\{literal\_constant}:\5
+\.{'='}\\{w\_value}\.{'='}\1\1\2\2\6
+${}\{{}$\1\6
+\&{char} \\{literal}[\T{13}];\6
+\&{Symbol} ${}{*}\|s;{}$\7
+${}\\{sprintf}(\\{literal},\39\.{"=\%d="},\39\\{word\_s}(\.{\$2}));{}$\6
+\&{if} ${}(\R(\|s\K\\{lookup}(\\{literal}))){}$\1\5
+${}\|s\K\\{install}(\\{literal},\39\.{\$2},\39\\{lineno});{}$\2\6
+${}\|s\MG\\{reflist}\K\\{addref}(\|s\MG\\{reflist},\39\\{location\_counter},\39%
+\\{lineno});{}$\6
+\&{if} (\\{xref})\1\5
+${}\|s\MG\\{xref}\K\\{addref}(\|s\MG\\{xref},\39\\{location\_counter},\39%
+\\{lineno});{}$\2\6
+\4${}\}{}$\2\7
+;\6
+\vb{\%\%}\par
+\fi
+
+\N{2}{29}C TRAILER.
+\fi
+
+\M{30}
+\Y\B\&{unsigned} \\{add\_mix}(\&{unsigned} \|a${},\39{}$\&{unsigned} \|b)\1\1\2%
+\2\6
+${}\{{}$\1\6
+\&{unsigned} \|s${},{}$ \|t;\7
+${}\|s\K\.{SIGN}(\|a);{}$\6
+${}\|t\K\.{SIGN}(\|b);{}$\6
+\&{if} ${}(\|s\I\|t){}$\5
+${}\{{}$\1\6
+\&{if} ${}(\.{MAG}(\|a)>\.{MAG}(\|b)){}$\5
+${}\{{}$\1\6
+${}\|a\K\.{MAG}(\|a)-\.{MAG}(\|b);{}$\6
+${}\|t\K\|s;{}$\6
+\4${}\}{}$\2\6
+\&{else}\1\5
+${}\|a\K\.{MAG}(\|b)-\.{MAG}(\|a);{}$\2\6
+\4${}\}{}$\2\6
+\&{else}\1\5
+${}\|a\K\.{MAG}(\|a)+\.{MAG}(\|b);{}$\2\6
+\&{if} ${}(\|a>\.{B5}-\T{1}){}$\1\5
+\\{yyerror}(\.{"Arithmetic\ result\ g}\)\.{reater\ than\ 10737418}\)\.{23"});\2%
+\6
+\&{return} \|a${}\OR\|t;{}$\6
+\4${}\}{}$\2\par
+\fi
+
+\M{31}
+\Y\B\&{unsigned} \\{sub\_mix}(\&{unsigned} \|a${},\39{}$\&{unsigned} \|b)\1\1\2%
+\2\6
+${}\{{}$\1\6
+${}\|b\MRL{{\XOR}{\K}}\.{MINUS};{}$\6
+\&{return} \\{add\_mix}${}(\|a,\39\|b);{}$\6
+\4${}\}{}$\2\par
+\fi
+
+\M{32}
+\Y\B\&{unsigned} \\{mul\_mix}(\&{unsigned} \|a${},\39{}$\&{unsigned} \|b)\1\1\2%
+\2\6
+${}\{{}$\1\6
+\&{unsigned} \|s;\6
+\&{long} \&{long} \|w;\7
+${}\|s\K\.{SIGN}(\|a)\E\.{SIGN}(\|b)\?\.{PLUS}:\.{MINUS};{}$\6
+\&{if} ${}((\|w\K\.{MAG}(\|a)*\.{MAG}(\|b))>\.{B5}-\T{1}){}$\1\5
+\\{yyerror}(\.{"Arithmetic\ result\ g}\)\.{reater\ than\ 10737418}\)\.{23"});\2%
+\6
+\&{return} \|s${}\OR\.{MAG}(\|w);{}$\6
+\4${}\}{}$\2\par
+\fi
+
+\M{33}
+\Y\B\&{unsigned} \\{div\_mix}(\&{unsigned} \|a${},\39{}$\&{unsigned} \|b)\1\1\2%
+\2\6
+${}\{{}$\1\6
+\&{return} \.{SIGN}(\|a)${}\OR\.{MAG}(\.{MAG}(\|a)/\.{MAG}(\|b));{}$\6
+\4${}\}{}$\2\par
+\fi
+
+\M{34}
+\Y\B\&{unsigned} \\{w\_eval}(\&{unsigned} \|x${},\39{}$\&{unsigned} \|y${},%
+\39{}$\&{int} \|f)\1\1\2\2\6
+${}\{{}$\1\6
+\&{int} \|l${},{}$ \|r;\6
+\&{unsigned} \\{sign}${},{}$ \\{mask};\7
+${}\|l\K\|f/\T{8};{}$\6
+${}\|r\K\|f\MOD\T{8};{}$\6
+${}\\{mask}\K\.{B5}-\T{1};{}$\6
+\&{if} ${}(\|l<\T{0}\V\|l>\|r\V\|r>\T{5}){}$\1\5
+\\{yyerror}(\.{"Invalid\ F-part"});\2\6
+\&{if} ${}(\|l\E\T{0}){}$\5
+${}\{{}$\C{ Is sign included ? }\1\6
+${}\\{sign}\K\.{MINUS}\AND\|y;{}$\6
+${}\|l\K\T{1};{}$\6
+\4${}\}{}$\2\6
+\&{else}\1\5
+${}\\{sign}\K\.{MINUS}\AND\|x{}$;\C{ keep previous sign }\2\6
+${}\|y\MRL{{\LL}{\K}}(\T{4}-\|r+\|l)*\.{BYTESIZE}{}$;\C{ take correct no of
+bytes from right 				       end }\6
+${}\|y\K\.{MAG}(\|y){}$;\C{ truncate to 5 bytes }\6
+${}\|y\MRL{{\GG}{\K}}(\|l-\T{1})*\.{BYTESIZE}{}$;\C{ position within word }\6
+${}\\{mask}\MRL{{\LL}{\K}}(\T{4}-\|r+\|l)*\.{BYTESIZE}{}$;\C{ do same for mask
+}\6
+${}\\{mask}\K\.{MAG}(\\{mask}){}$;\C{ truncate to 5 bytes }\6
+${}\\{mask}\MRL{{\GG}{\K}}(\|l-\T{1})*\.{BYTESIZE};{}$\6
+${}\|x\MRL{\AND{\K}}\CM\\{mask}{}$;\C{ mask off where y is to be inserted }\6
+${}\|x\K\.{MAG}(\|x){}$;\C{ discard sign }\6
+${}\|x\MRL{{\OR}{\K}}\|y{}$;\C{ insert y }\6
+${}\|x\MRL{{\OR}{\K}}\\{sign}{}$;\C{ insert sign }\6
+\&{return} \|x;\6
+\4${}\}{}$\2\par
+\fi
+
+\M{35}
+\Y\B\&{int} \\{word\_s}(\&{unsigned} \|w)\C{ convert mix word into a signed
+integer }\6
+${}\{{}$\1\6
+\&{if} ${}(\|w\AND\.{MINUS}){}$\1\5
+${}\|w\K{-}\.{MAG}(\|w);{}$\2\6
+\&{return} \|w;\6
+\4${}\}{}$\2\par
+\fi
+
+\M{36}
+\Y\B\&{void} \\{warning\_l}(\&{int} \\{line}${},\39{}$\&{char} ${}{*}\|s,\39{}$%
+\&{char} ${}{*}\|t){}$\1\1\2\2\6
+${}\{{}$\1\6
+\&{if} (\|t)\1\5
+${}\\{error\_at\_line}(\T{0},\39\T{0},\39\\{source\_file},\39\\{line},\39%
+\.{"warning:\ \%s\ \%s"},\39\|s,\39\|t);{}$\2\6
+\&{else}\1\5
+${}\\{error\_at\_line}(\T{0},\39\T{0},\39\\{source\_file},\39\\{line},\39%
+\.{"warning:\ \%s"},\39\|s);{}$\2\6
+\4${}\}{}$\2\par
+\fi
+
+\M{37}
+\Y\B\&{void} \\{warning}(\&{char} ${}{*}\|s,\39{}$\&{char} ${}{*}\|t){}$\1\1\2%
+\2\6
+${}\{{}$\1\6
+${}\\{warning\_l}(\\{lineno},\39\|s,\39\|t);{}$\6
+\4${}\}{}$\2\par
+\fi
+
+\M{38}
+\Y\B\&{void} \\{parse\_error\_l}(\&{int} \\{line}${},\39{}$\&{char} ${}{*}\|s,%
+\39{}$\&{char} ${}{*}\|t){}$\1\1\2\2\6
+${}\{{}$\1\6
+\&{if} (\|t)\1\5
+${}\\{error\_at\_line}(\T{0},\39\T{0},\39\\{source\_file},\39\\{line},\39\.{"%
+\%s\ \%s"},\39\|s,\39\|t);{}$\2\6
+\&{else}\1\5
+${}\\{error\_at\_line}(\T{0},\39\T{0},\39\\{source\_file},\39\\{line},\39\.{"%
+\%s"},\39\|s);{}$\2\6
+${}\\{error\_count}\PP;{}$\6
+\4${}\}{}$\2\par
+\fi
+
+\M{39}
+\Y\B\&{void} \\{parse\_error}(\&{char} ${}{*}\|s,\39{}$\&{char} ${}{*}\|t){}$\1%
+\1\2\2\6
+${}\{{}$\1\6
+${}\\{parse\_error\_l}(\\{lineno},\39\|s,\39\|t);{}$\6
+\4${}\}{}$\2\par
+\fi
+
+\M{40}
+\Y\B\&{int} \\{yyerror}(\&{char} ${}{*}\|s{}$)\C{ called for yacc syntax error
+}\6
+${}\{{}$\1\6
+${}\\{parse\_error}(\|s,\39\NULL);{}$\6
+\4${}\}{}$\2\par
+\fi
+
+\M{41}
+\Y\B\&{void} \\{usage}(\,)\1\1\2\2\6
+${}\{{}$\1\6
+\\{printf}(\.{"usage:\ mixal\ [OPTIO}\)\.{NS]\ [input-file]\\n"});\6
+\\{printf}(\.{"Assemble\ a\ MIX\ sour}\)\.{ce\ file\\n"});\6
+\\{printf}(\.{"\\n"});\6
+\\{printf}(\.{"OPTIONS\ are:\\n"});\6
+\\{printf}(\.{"\ \ -l,\ --list\ \ \ \ \ \ \ }\)\.{\ \ \ \ \ \ \ \ \ \ \ \ \
+produce}\)\.{\ a\ source\ listing\\n"});\6
+\\{printf}(\.{"\ \ --list-file=FILE\ }\)\.{\ \ \ \ \ \ \ \ \ \ \ \ \ set\ lis}%
+\)\.{ting\ file\ name\\n"});\6
+\\{printf}(\.{"\ \ -f,\ --force\ \ \ \ \ \ }\)\.{\ \ \ \ \ \ \ \ \ \ \ \ \
+force\ g}\)\.{enerating\ object\ dec}\)\.{k\ even\ if\\n"});\6
+\\{printf}(\.{"\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ }\)\.{\ \ \ \ \ \ \ \ \ \ %
+\ \ \ assembl}\)\.{ed\ with\ errors\\n"});\6
+\\{printf}(\.{"\ \ -o,\ --output=FILE}\)\.{\ \ \ \ \ \ \ \ \ \ \ \ \ set\ out}%
+\)\.{put\ file\ name\\n"});\6
+\\{printf}(\.{"\ \ -r,\ --raw-output\ }\)\.{\ \ \ \ \ \ \ \ \ \ \ \ \ produce}%
+\)\.{\ raw\ code\ output\\n"});\6
+\\{printf}(\.{"\ \ -x,\ --cross-refer}\)\.{ence,\ --xref\ output\ }\)\.{a\
+cross\ reference\\n"});\6
+\\{printf}(\.{"\\n"});\6
+\\{printf}(\.{"Debugging\ options:\\}\)\.{n"});\6
+\\{printf}(\.{"\ \ --debug-gram\ \ \ \ \ }\)\.{\ \ \ \ \ \ \ \ \ \ \ \ \ enable%
+\ }\)\.{parser\ debugging\\n"});\6
+\\{printf}(\.{"\ \ --debug-lex\ \ \ \ \ \ }\)\.{\ \ \ \ \ \ \ \ \ \ \ \ \
+enable\ }\)\.{lexer\ debugging\\n"});\6
+\\{printf}(\.{"\ \ -d\ LEVEL\ \ \ \ \ \ \ \ \ }\)\.{\ \ \ \ \ \ \ \ \ \ \ \ \
+set\ deb}\)\.{ug\ level\\n"});\6
+\\{printf}(\.{"\\n"});\6
+\\{printf}(\.{"Informative\ options}\)\.{:\\n"});\6
+\\{printf}(\.{"\ \ -h,\ --help\ \ \ \ \ \ \ }\)\.{\ \ \ \ \ \ \ \ \ \ \ \ \
+print\ t}\)\.{his\ help\ summary\\n"});\6
+\\{printf}(\.{"\ \ -V,\ --version\ \ \ \ }\)\.{\ \ \ \ \ \ \ \ \ \ \ \ \ print\
+p}\)\.{rogram\ version\ and\ l}\)\.{icense\ info\\n"});\6
+\\{printf}(\.{"\\n"});\6
+${}\\{printf}(\.{"Report\ bugs\ to\ <\%s>}\)\.{\\n"},\39\.{PACKAGE%
+\_BUGREPORT});{}$\6
+\4${}\}{}$\2\par
+\fi
+
+\M{42}
+\Y\B\&{void} \\{init\_keywords}(\,)\1\1\2\2\6
+${}\{{}$\1\6
+\&{int} \|i;\7
+\&{for} ${}(\|i\K\T{0};{}$ ${}\|i<\\{op\_count};{}$ ${}\|i\PP){}$\1\5
+${}\\{install\_op}({\AND}\\{mix\_optab}[\|i]);{}$\2\6
+\4${}\}{}$\2\par
+\fi
+
+\M{43}Declare long options
+\Y\B\&{enum} ${}\{$ $\.{DEBUG\_GRAM\_OPTION}\K\T{256},\39\.{DEBUG\_LEX%
+\_OPTION},\39\.{LIST\_FILE\_OPTION}$ $,$ $\}$  ;\7
+\&{struct} \\{option} \\{options}[\,]${}\K\{\{\.{"debug-gram"},\39\\{no%
+\_argument},\39\NULL,\39\.{DEBUG\_GRAM\_OPTION}\},\39\{\.{"debug-lex"},\39\\{no%
+\_argument},\39\NULL,\39\.{DEBUG\_LEX\_OPTION}\},\39\{\.{"help"},\39\\{no%
+\_argument},\39\NULL,\39\.{'h'}\},\39\{\.{"list"},\39\\{no\_argument},\39\NULL,%
+\39\.{'l'}\},\39\{\.{"list-file"},\39\\{required\_argument},\39\NULL,\39\.{LIST%
+\_FILE\_OPTION}\},\39\{\.{"force"},\39\\{no\_argument},\39\NULL,\39\.{'f'}\},%
+\39\{\.{"raw-output"},\39\\{no\_argument},\39\NULL,\39\.{'r'}\},\39\{%
+\.{"output"},\39\\{required\_argument},\39\NULL,\39\.{'o'}\},\39\{%
+\.{"version"},\39\\{no\_argument},\39\NULL,\39\.{'V'}\},\39\{%
+\.{"cross-reference"},\39\\{no\_argument},\39\NULL,\39\.{'x'}\},\39\{%
+\.{"xref"},\39\\{no\_argument},\39\NULL,\39\.{'x'}\},\39\{\NULL\}\}{}$;\par
+\fi
+
+\M{44}
+\Y\B\&{int} \\{main}(\&{int} \\{argc}${},\39{}$\&{char} ${}{*}\\{argv}[\,]){}$%
+\1\1\2\2\6
+${}\{{}$\1\6
+\&{int} \\{lexdebug}${}\K\T{0};{}$\6
+\&{int} \|i;\6
+\&{char} ${}{*}\|p;{}$\6
+\&{int} \\{force}${}\K\T{0}{}$;\C{ Force generating object deck even if
+assembled with 		       errors }\7
+\\{set\_program\_name}(\\{argv}[\T{0}]);\6
+\&{while} ${}((\|i\K\\{getopt\_long}(\\{argc},\39\\{argv},\39\.{"d:fhlo:rVx"},%
+\39\\{options},\39\NULL))\I\.{EOF}){}$\5
+${}\{{}$\1\6
+\&{switch} (\|i)\5
+${}\{{}$\1\6
+\4\&{case} \.{'d'}:\6
+\&{for} ${}(\|p\K\\{optarg};{}$ ${}{*}\|p;{}$ ${}\|p\PP){}$\5
+${}\{{}$\1\6
+\&{switch} ${}({*}\|p){}$\5
+${}\{{}$\1\6
+\4\&{case} \.{'y'}:\5
+${}\\{yydebug}\K\T{1};{}$\6
+\&{break};\6
+\4\&{case} \.{'l'}:\5
+${}\\{lexdebug}\K\T{1};{}$\6
+\&{break};\6
+\4\&{default}:\5
+${}\\{error}(\T{1},\39\T{0},\39\.{"invalid\ debugging\ l}\)\.{evel:\ \%c\\n"},%
+\39{*}\|p);{}$\6
+\&{break};\6
+\4${}\}{}$\2\6
+\4${}\}{}$\2\6
+\&{break};\6
+\4\&{case} \.{DEBUG\_GRAM\_OPTION}:\5
+${}\\{yydebug}\K\T{1};{}$\6
+\&{break};\6
+\4\&{case} \.{DEBUG\_LEX\_OPTION}:\5
+${}\\{lexdebug}\K\T{1};{}$\6
+\&{break};\6
+\4\&{case} \.{'f'}:\5
+${}\\{force}\K\T{1};{}$\6
+\&{break};\6
+\4\&{case} \.{'l'}:\C{ produce a listing }\6
+${}\\{list}\K\T{1};{}$\6
+\&{break};\6
+\4\&{case} \.{LIST\_FILE\_OPTION}:\5
+${}\\{list}\K\T{1};{}$\6
+${}\\{listfile}\K\\{optarg};{}$\6
+\&{break};\6
+\4\&{case} \.{'o'}:\5
+${}\\{outfile}\K\\{optarg};{}$\6
+\&{break};\6
+\4\&{case} \.{'r'}:\5
+${}\\{writeraw}\K\T{1};{}$\6
+\&{break};\6
+\4\&{case} \.{'V'}:\C{ show version }\6
+\\{mix\_version}(\\{program\_name});\6
+\\{exit}(\T{0});\6
+\4\&{case} \.{'x'}:\C{ produce cross-reference listing }\6
+${}\\{xref}\K\T{1};{}$\6
+\&{break};\6
+\4\&{case} \.{'h'}:\5
+\\{usage}(\,);\6
+\\{exit}(\T{0});\6
+\4\&{default}:\5
+\\{exit}(\T{1});\6
+\4${}\}{}$\2\6
+\4${}\}{}$\2\6
+\&{if} ${}(\\{argc}>\\{optind}){}$\5
+${}\{{}$\1\6
+\&{FILE} ${}{*}\\{fp};{}$\7
+${}\\{source\_file}\K\\{argv}[\\{optind}];{}$\6
+\&{if} ${}((\\{fp}\K\\{fopen}(\\{source\_file},\39\.{"r"}))\E\NULL){}$\1\5
+${}\\{error}(\T{1},\39\\{errno},\39\.{"can't\ open\ \%s"},\39\\{source%
+\_file});{}$\2\6
+${}\\{init\_lex}(\\{fp},\39\\{lexdebug});{}$\6
+\&{if} ${}(\\{list}\W\R\\{listfile}){}$\5
+${}\{{}$\1\6
+\&{unsigned} \\{len};\6
+\&{char} ${}{*}\\{base},{}$ ${}{*}\|p;{}$\7
+${}\\{base}\K\\{strrchr}(\\{source\_file},\39\.{'/'});{}$\6
+\&{if} (\\{base})\1\5
+${}\\{base}\PP;{}$\2\6
+\&{else}\1\5
+${}\\{base}\K\\{source\_file};{}$\2\6
+${}\|p\K\\{strrchr}(\\{base},\39\.{'.'});{}$\6
+\&{if} (\|p)\1\5
+${}\\{len}\K\|p-\\{base};{}$\2\6
+\&{else}\1\5
+${}\\{len}\K\\{strlen}(\\{base});{}$\2\6
+${}\\{listfile}\K\\{xmalloc}(\\{len}+{}$\&{sizeof} (\.{LIST\_SUFFIX}));\6
+${}\\{memcpy}(\\{listfile},\39\\{base},\39\\{len});{}$\6
+${}\\{strcat}(\\{listfile},\39\.{LIST\_SUFFIX});{}$\6
+\4${}\}{}$\2\6
+\4${}\}{}$\2\6
+\&{else}\1\5
+${}\\{init\_lex}(\\{stdin},\39\\{lexdebug});{}$\2\6
+\&{if} (\\{list})\5
+${}\{{}$\1\6
+${}\\{lst}\K\\{create\_temp}(\.{"lstXXXXXX"});{}$\6
+\&{if} ${}(\R\\{listfile}){}$\1\5
+${}\\{listfile}\K\.{"mixal.lst"};{}$\2\6
+\4${}\}{}$\2\6
+\&{for} ${}(\|i\K\T{0};{}$ ${}\|i<\.{MEMSIZE};{}$ ${}\|i\PP){}$\1\5
+${}\\{lines}[\|i]\K{-}\T{1};{}$\2\6
+\\{init\_keywords}(\,);\6
+${}\\{error\_count}\MRL{+{\K}}\\{yyparse}(\,);{}$\6
+\&{if} ${}(\\{start\_location}\E\.{MEMSIZE}){}$\1\5
+${}\\{parse\_error}(\.{"No\ END\ statement\ in}\)\.{\ program"},\39\NULL);{}$\2%
+\6
+\&{if} ${}(\\{error\_count}\W\R\\{force}){}$\1\5
+\\{exit}(\T{1});\2\6
+\\{symbols}(\,);\6
+\\{end\_routine}(\\{word\_s}(\\{start\_location}));\6
+\&{if} (\\{list})\1\5
+\\{listing}(\,);\2\6
+\&{else} \&{if} (\\{xref})\1\5
+\\{dumpsymtab}(\\{stderr});\2\6
+${}\\{exit}(\\{error\_count}>\T{0});{}$\6
+\4${}\}{}$\2\par
+\fi
+
+\M{45}
+\Y\B\&{FILE} ${}{*}{}$\\{create\_temp}(\&{char} ${}{*}\\{tmpl}){}$\1\1\2\2\6
+${}\{{}$\1\6
+\&{char} ${}{*}\\{buf};{}$\6
+\&{char} ${}{*}\\{tmp};{}$\6
+\&{int} \\{fd};\6
+\&{int} \\{save\_mask};\7
+\&{if} ${}((\\{tmp}\K\\{getenv}(\.{"TMP"}))\E\NULL\W(\\{tmp}\K\\{getenv}(%
+\.{"TEMP"}))\E\NULL){}$\1\5
+${}\\{tmp}\K\.{"/tmp"};{}$\2\6
+${}\\{buf}\K\\{xmalloc}(\\{strlen}(\\{tmp})+\T{1}+\\{strlen}(\\{tmpl})+%
+\T{1});{}$\6
+${}\\{sprintf}(\\{buf},\39\.{"\%s/\%s"},\39\\{tmp},\39\\{tmpl});{}$\6
+${}\\{save\_mask}\K\\{umask}(\T{\~77});{}$\6
+${}\\{fd}\K\\{mkstemp}(\\{buf});{}$\6
+\\{umask}(\\{save\_mask});\6
+\&{if} ${}(\\{fd}\E{-}\T{1}){}$\1\5
+${}\\{error}(\T{1},\39\\{errno},\39\.{"can't\ create\ tempor}\)\.{ary\ file\ %
+\%s"},\39\\{tmp});{}$\2\6
+\\{unlink}(\\{buf});\6
+\\{free}(\\{buf});\6
+\&{return} \\{fdopen}${}(\\{fd},\39\.{"w+"});{}$\6
+\4${}\}{}$\2\par
+\fi
+
+\M{46}Print a cell from location \PB{\|i} to stream \PB{\\{fp}} in listing
+format.
+\Y\B\&{void} \\{list\_cell}(\&{FILE} ${}{*}\\{fp},\39{}$\&{int} \|i)\1\1\2\2\6
+${}\{{}$\1\6
+\&{int} \\{Av}${},{}$ \\{Iv}${},{}$ \\{Fv}${},{}$ \\{Cv}${},{}$ \\{Sv};\7
+${}\\{Sv}\K(\\{memory}[\|i]\AND\.{MINUS})\?\.{'-'}:\.{'+'};{}$\6
+${}\\{Av}\K(\\{memory}[\|i]\AND(\.{B5}-\T{1}))\GG\T{3}*\.{BYTESIZE};{}$\6
+${}\\{Iv}\K(\\{memory}[\|i]\AND(\.{B3}-\T{1}))\GG\T{2}*\.{BYTESIZE};{}$\6
+${}\\{Fv}\K(\\{memory}[\|i]\AND(\.{B2}-\T{1}))\GG\.{BYTESIZE};{}$\6
+${}\\{Cv}\K(\\{memory}[\|i]\AND(\.{B1}-\T{1}));{}$\6
+${}\\{fprintf}(\\{fp},\39\.{"\%4d:\ \%c\ \%4d\ \%2d\ \%2d}\)\.{\ \%2d"},\39\|i,%
+\39\\{Sv},\39\\{Av},\39\\{Iv},\39\\{Fv},\39\\{Cv});{}$\6
+\4${}\}{}$\2\par
+\fi
+
+\M{47}Produce a program listing.
+\Y\B\&{void} \\{listing}(\,)\1\1 $\{$ \&{FILE} ${}{*}\\{fp};{}$\6
+\&{char} \\{buf}[\T{512}];\6
+\&{int} \|i${},{}$ \|l;\6
+\&{int} \\{lastloc}${}\K\T{0}{}$;\par
+\fi
+
+\M{48}Ensure the temporary stream is zero-terminated.
+\Y\B$\\{fseek}(\\{lst},\39{-}\T{1},\39\.{SEEK\_CUR});{}$\6
+\&{if} ${}(\\{fgetc}(\\{lst})\I\.{'\\n'}){}$\1\5
+${}\\{fputc}(\.{'\\n'},\39\\{lst});{}$\2\6
+\\{rewind}(\\{lst});\par
+\fi
+
+\M{49}Open the output file.
+\Y\B$\\{fp}\K\\{fopen}(\\{listfile},\39\.{"w"});{}$\6
+\&{if} ${}(\\{fp}\E\NULL){}$\1\5
+${}\\{error}(\T{1},\39\\{errno},\39\.{"can't\ open\ \%s"},\39\\{listfile}){}$;%
+\2\par
+\fi
+
+\M{50}Produce a listing for each input line.
+\Y\B\&{for} ${}(\|l\K\T{1};{}$ ${}\|l\Z\\{lineno};{}$ ${}\|l\PP){}$\5
+${}\{{}$\1\6
+\&{if} ${}((\|i\K\\{lines}[\|l])\I{-}\T{1}){}$\5
+${}\{{}$\1\6
+${}\\{list\_cell}(\\{fp},\39\|i);{}$\6
+${}\\{fprintf}(\\{fp},\39\.{"\ \ \ \%3d\ "},\39\|l);{}$\6
+${}\\{lastloc}\K\|i;{}$\6
+\4${}\}{}$\2\6
+\&{else}\1\5
+${}\\{fprintf}(\\{fp},\39\.{"\%23s\ \%3d\ "},\39\.{"\ "},\39\|l);{}$\2\6
+\&{if} ${}(\\{fgets}(\\{buf},\39{}$\&{sizeof} (\\{buf})${},\39\\{lst})){}$\1\5
+${}\\{fputs}(\\{buf},\39\\{fp});{}$\2\6
+\&{else}\1\5
+${}\\{fputs}(\.{"\\n"},\39\\{fp});{}$\2\6
+\4${}\}{}$\2\par
+\fi
+
+\M{51}Produce a listing for each generated location.
+\Y\B\&{for} ${}(\|i\K\\{lastloc}+\T{1};{}$ ${}\|i<\\{location\_counter};{}$ ${}%
+\|i\PP){}$\5
+${}\{{}$\1\6
+${}\\{list\_cell}(\\{fp},\39\|i);{}$\6
+${}\\{fputs}(\.{"\\n"},\39\\{fp});{}$\6
+\4${}\}{}$\2\par
+\fi
+
+\M{52}Create a symbol table.
+\Y\B\\{dumpsymtab}(\\{fp});\par
+\fi
+
+\M{53}Close the listing file and finish.
+\Y\B\\{fclose}(\\{fp}); $\}{}$\par
+\fi
+
+\M{54}
+\Y\B\&{void} \\{dumpsymtab}(\&{FILE} ${}{*}\\{fp}){}$\1\1\2\2\6
+${}\{{}$\1\6
+\&{Symbol} ${}{*}{*}\\{symbols}\K\\{sort\_symbols}(\,);{}$\6
+\&{int} \|i;\6
+\&{ref} ${}{*}\\{refp};{}$\7
+${}\\{fprintf}(\\{fp},\39\.{"\\nSymbol\ \ \ \ \ Value\ }\)\.{\ Line"});{}$\6
+\&{if} (\\{xref})\5
+${}\{{}$\1\6
+${}\\{fprintf}(\\{fp},\39\.{"\ \ Referenced\ on\ lin}\)\.{e"});{}$\6
+\4${}\}{}$\2\6
+${}\\{fprintf}(\\{fp},\39\.{"\\n"});{}$\6
+\&{for} ${}(\|i\K\T{0};{}$ \\{symbols}[\|i]; ${}\|i\PP){}$\5
+${}\{{}$\1\6
+\&{Symbol} ${}{*}\|s\K\\{symbols}[\|i];{}$\7
+${}\\{fprintf}(\\{fp},\39\.{"\%-10s\ \ \%4d\ \%4d"},\39\|s\MG\\{name},\39%
+\\{word\_s}(\|s\MG\\{value}),\39\|s\MG\\{line});{}$\6
+\&{if} (\\{xref})\5
+${}\{{}$\1\6
+\\{sort\_refs}(\|s);\6
+\&{for} ${}(\\{refp}\K\|s\MG\\{xref};{}$ \\{refp}; ${}\\{refp}\K\\{refp}\MG%
+\\{next}){}$\5
+${}\{{}$\1\6
+\&{if} ${}(\\{refp}\MG\\{line}\I\|s\MG\\{line}){}$\1\5
+${}\\{fprintf}(\\{fp},\39\.{"\ \%4d"},\39\\{refp}\MG\\{line});{}$\2\6
+\4${}\}{}$\2\6
+\4${}\}{}$\2\6
+${}\\{fprintf}(\\{fp},\39\.{"\\n"});{}$\6
+\4${}\}{}$\2\6
+\\{free}(\\{symbols});\6
+\4${}\}{}$\2\par
+\fi
+
+\M{55}
+\Y\B\&{void} \\{tlist}(\&{char} ${}{*}\\{fmt},\39\,\ldots\,){}$\1\1\2\2\6
+${}\{{}$\1\6
+\&{va\_list} \\{ap};\7
+\&{if} ${}(\R\\{lst}){}$\1\5
+\&{return};\2\6
+${}\\{va\_start}(\\{ap},\39\\{fmt});{}$\6
+${}\\{vfprintf}(\\{lst},\39\\{fmt},\39\\{ap});{}$\6
+\\{va\_end}(\\{ap});\6
+\4${}\}{}$\2\par
+\fi
+
+\M{56}Evaluate a symbol if it represents a w-expression. Insert necessary data.
+\Y\B\&{int} \\{sym\_eval\_wexpr}(\&{Symbol} ${}{*}\|s){}$\1\1\2\2\6
+${}\{{}$\1\6
+\&{if} ${}(\|s\MG\\{name}[\T{0}]\E\.{'='}){}$\5
+${}\{{}$\1\6
+${}\\{memory}[\\{location\_counter}]\K\\{w\_eval}(\T{0},\39\|s\MG\\{value},\39%
+\T{5});{}$\6
+${}\|s\MG\\{value}\K\\{location\_counter}\PP;{}$\6
+\4${}\}{}$\2\6
+\&{if} ${}(\|s\MG\\{type}\E\.{UNDEF}){}$\5
+${}\{{}$\1\6
+\&{if} ${}(\|s\MG\\{name}[\T{0}]\E\.{'|'}){}$\5
+${}\{{}$\C{ FIXME }\1\6
+${}\\{parse\_error\_l}(\|s\MG\\{line},\39\.{"missing\ 'forward\ he}\)\.{re'"},%
+\39\NULL);{}$\6
+\4${}\}{}$\2\6
+\&{else}\5
+${}\{{}$\1\6
+${}\\{error}(\T{0},\39\T{0},\39\.{"warning:\ '\%-10s\ CON}\)\.{\ \ 0'\ inserted%
+\ at\ \%d:}\)\.{"},\39\|s\MG\\{name},\39\\{location\_counter});{}$\6
+${}\\{memory}[\\{location\_counter}]\K\T{0};{}$\6
+${}\|s\MG\\{value}\K\\{location\_counter}\PP;{}$\6
+${}\|s\MG\\{type}\K\.{DEF};{}$\6
+\4${}\}{}$\2\6
+\4${}\}{}$\2\6
+\&{return} \T{0};\6
+\4${}\}{}$\2\par
+\fi
+
+\M{57}
+\Y\B\&{static} \&{int} \\{sym\_resolve}(\&{Symbol} ${}{*}\|s){}$\1\1\2\2\6
+${}\{{}$\C{ Now that the literal pool has been dumped we can 	evaluate the
+location of the END statement }\1\6
+\&{if} ${}(\|s\MG\\{type}\E\.{END}){}$\1\5
+${}\|s\MG\\{value}\K\\{location\_counter}{}$;\C{ Now we can handle any forward
+references }\2\6
+\\{resolve\_forward}(\|s);\6
+\&{return} \T{0};\6
+\4${}\}{}$\2\par
+\fi
+
+\M{58}dump literals and fix forward refs and undefined symbols
+\Y\B\&{void} \\{symbols}(\,)\1\1\2\2\6
+${}\{{}$\1\6
+\\{iterate}(\\{sym\_eval\_wexpr});\6
+\\{iterate}(\\{sym\_resolve});\6
+\4${}\}{}$\2\par
+\fi
+
+\M{59}
+\Y\B\&{char} \\{loader}[\,]${}\K\.{"\ O\ O6\ Z\ O6\ \ \ \ I\ C\ O}\)\.{4\ 0\ EH%
+\ A\ \ F\ F\ CF\ 0\ \ }\)\.{E\ \ \ EU\ 0\ IH\ G\ BB\ \ \ E}\)\.{J\ \ CA.\ Z\ EU%
+\ \ \ EH\ E\ B}\)\.{A\\n"}\.{"\ \ \ EU\ 2A-H\ S\ BB\ \ C\ }\)\.{U\ 1AEH\ 2AEN\
+V\ \ E\ \ CL}\)\.{U\ \ ABG\ Z\ EH\ E\ BB\ J\ B}\)\.{.\ A\ \ 9\ \ \ \ \ \ \ \ \ %
+\ \ \ \ \ }\)\.{\ \\n"}{}$;\par
+\fi
+
+\M{60}
+\Y\B\&{void} \\{end\_routine}(\&{int} \\{start})\1\1\2\2\6
+${}\{{}$\1\6
+\&{long} \\{address}${},{}$ \\{loc}${},{}$ \\{sign}${},{}$ \\{value};\6
+\&{int} \|i${},{}$ \|j${},{}$ \\{flag};\6
+\&{char} \\{field}[\T{7}][\T{11}];\6
+\&{char} \\{title}[\T{6}];\6
+\&{FILE} ${}{*}\\{fp};{}$\7
+\&{if} (\\{outfile})\5
+${}\{{}$\1\6
+${}\\{fp}\K\\{fopen}(\\{outfile},\39\.{"w"});{}$\6
+\&{if} ${}(\R\\{fp}){}$\1\5
+${}\\{error}(\T{1},\39\\{errno},\39\.{"cannot\ open\ output\ }\)\.{file\ `%
+\%s'"},\39\\{outfile});{}$\2\6
+\4${}\}{}$\2\6
+\&{else}\1\5
+${}\\{fp}\K\\{stdout};{}$\2\6
+\&{if} (\\{source\_file})\5
+${}\{{}$\1\6
+\&{char} ${}{*}\|p;{}$\7
+\&{if} ${}(\|p\K\\{strrchr}(\\{source\_file},\39\.{'/'})){}$\1\5
+${}\|p\PP;{}$\2\6
+\&{else}\1\5
+${}\|p\K\\{source\_file};{}$\2\6
+\&{for} ${}(\|i\K\T{0};{}$ ${}\|i<\T{5}\W\|p[\|i];{}$ ${}\|i\PP){}$\1\5
+${}\\{title}[\|i]\K\\{toupper}(\|p[\|i]);{}$\2\6
+${}\\{title}[\|i]\K\.{'\\0'};{}$\6
+\4${}\}{}$\2\6
+\&{else}\1\5
+${}\\{strcpy}(\\{title},\39\.{"MIXAL"});{}$\2\6
+\&{if} (\\{writeraw})\5
+${}\{{}$\1\6
+\&{int} \\{count}${}\K\T{0};{}$\7
+\&{for} ${}(\|i\K\T{0};{}$ ${}\|i<\T{32};{}$ ${}\|i\PP){}$\5
+${}\{{}$\1\6
+${}\\{fprintf}(\\{fp},\39\.{"\%c\%c\%c\%c\%c"},\39\\{mixalf}[((\\{memory}[\|i]%
+\AND(\.{B5}-\T{1}))\GG\T{4}*\.{BYTESIZE})\AND(\.{B1}-\T{1})],\39\\{mixalf}[((%
+\\{memory}[\|i]\AND(\.{B5}-\T{1}))\GG\T{3}*\.{BYTESIZE})\AND(\.{B1}-\T{1})],\39%
+\\{mixalf}[((\\{memory}[\|i]\AND(\.{B3}-\T{1}))\GG\T{2}*\.{BYTESIZE})\AND(%
+\.{B1}-\T{1})],\39\\{mixalf}[((\\{memory}[\|i]\AND(\.{B2}-\T{1}))\GG%
+\.{BYTESIZE})\AND(\.{B1}-\T{1})],\39\\{mixalf}[(\\{memory}[\|i]\AND(\.{B1}-%
+\T{1}))]);{}$\6
+${}\\{count}\PP;{}$\6
+\&{if} ${}(\\{count}\MOD\T{16}\E\T{0}){}$\1\5
+${}\\{fprintf}(\\{fp},\39\.{"\\n"});{}$\2\6
+\4${}\}{}$\2\6
+\&{return};\6
+\4${}\}{}$\C{ The loading routine }\2\6
+${}\\{fprintf}(\\{fp},\39\.{"\%s"},\39\\{loader});{}$\6
+${}\\{flag}\K\|i\K\T{0};{}$\6
+\&{for} ${}(\\{address}\K\T{0};{}$ ${}\\{address}<\.{MEMSIZE};{}$ ${}%
+\\{address}\PP){}$\1\6
+\&{if} (\\{memory}[\\{address}])\5
+${}\{{}$\1\6
+${}\\{sign}\K\\{memory}[\\{address}]\AND\.{MINUS}\?{-}\T{1}:\T{1};{}$\6
+${}\\{value}\K\.{MAG}(\\{memory}[\\{address}]);{}$\6
+\&{if} ${}(\R\\{flag}){}$\1\5
+${}\\{flag}\K\T{1},\39\\{loc}\K\\{address};{}$\2\6
+\&{if} ${}(\\{address}\I\\{loc}+\|i\V\|i\G\T{7}){}$\5
+${}\{{}$\1\6
+${}\\{fprintf}(\\{fp},\39\.{"\%-5s\%1d\%04ld"},\39\\{title},\39\|i,\39%
+\\{loc});{}$\6
+\&{for} ${}(\|j\K\T{0};{}$ ${}\|j<\|i;{}$ ${}\|j\PP){}$\1\5
+${}\\{fprintf}(\\{fp},\39\.{"\%10s"},\39\\{field}[\|j]);{}$\2\6
+${}\\{fprintf}(\\{fp},\39\.{"\\n"});{}$\6
+${}\\{loc}\K\\{address};{}$\6
+${}\|i\K\T{0};{}$\6
+\4${}\}{}$\2\6
+${}\\{sprintf}(\\{field}[\|i],\39\.{"\%010ld"},\39\\{value});{}$\6
+\&{if} ${}(\\{sign}<\T{0}){}$\1\5
+${}\\{field}[\|i][\T{9}]\K\.{"\~JKLMNOPQR"}[\\{field}[\|i][\T{9}]-\.{'0'}];{}$%
+\2\6
+${}\|i\PP;{}$\6
+\4${}\}{}$\2\2\6
+${}\\{fprintf}(\\{fp},\39\.{"\%-5s\%1d\%04ld"},\39\\{title},\39\|i,\39%
+\\{loc});{}$\6
+\&{for} ${}(\|j\K\T{0};{}$ ${}\|j<\|i;{}$ ${}\|j\PP){}$\1\5
+${}\\{fprintf}(\\{fp},\39\.{"\%10s"},\39\\{field}[\|j]);{}$\2\6
+${}\\{fprintf}(\\{fp},\39\.{"\\n"});{}$\6
+${}\\{fprintf}(\\{fp},\39\.{"TRANS0\%04d\\n"},\39\\{start});{}$\6
+\\{fclose}(\\{fp});\6
+\4${}\}{}$\2\par
+\fi
+
+\M{61}
+\Y\B\&{int} \\{num}(\&{char} ${}{*}\\{text}){}$\1\1\2\2\6
+${}\{{}$\1\6
+\&{int} \|i${},{}$ \|n;\6
+\&{char} ${}{*}\|p;{}$\7
+${}\|n\K\T{0};{}$\6
+\&{for} ${}(\|i\K\T{0};{}$ ${}\|i<\T{5};{}$ ${}\|i\PP){}$\1\6
+\&{if} ${}(\R\\{text}[\|i]){}$\1\5
+${}\|n\K\|n*\.{B1};{}$\2\6
+\&{else} \&{if} ${}(\|p\K\\{strchr}(\\{mixalf},\39\\{text}[\|i])){}$\1\5
+${}\|n\K\|n*\.{B1}+(\|p-\\{mixalf});{}$\2\6
+\&{else}\1\5
+\\{yyerror}(\.{"bad\ character\ in\ AL}\)\.{F\ constant"});\2\2\6
+\&{return} \|n;\6
+\4${}\}{}$\2\par
+\fi
+
+\M{62}
+\Y\B\&{void} \\{resolve\_forward}(\&{Symbol} ${}{*}\|f){}$\1\1\2\2\6
+${}\{{}$\1\6
+\&{ref} ${}{*}\|p;{}$\7
+\&{for} ${}(\|p\K\|f\MG\\{reflist};{}$ \|p; ${}\|p\K\|p\MG\\{next}){}$\5
+${}\{{}$\1\6
+${}\\{memory}[\|p\MG\\{address}]\MRL{\AND{\K}}(\.{B3}-\T{1});{}$\6
+${}\\{memory}[\|p\MG\\{address}]\MRL{{\OR}{\K}}\|f\MG\\{value}\LL(\.{BYTESIZE}*%
+\T{3});{}$\6
+\4${}\}{}$\2\6
+\4${}\}{}$\2\par
+\fi
+
+\inx
+\fin
+\con

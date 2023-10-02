@@ -1,0 +1,64 @@
+% This file is part of MIX
+% Copyright (C) 1998, 1999, 2000 Douglas Laing
+% Copyright (C) 2000, 2005, 2007 Sergey Poznyakoff
+%
+% This program is free software; you can redistribute it and/or
+% modify it under the terms of the GNU General Public License as
+% published by the Free Software Foundation; either version 3, or (at
+% your option) any later version.
+%
+% This program is distributed in the hope that it will be useful, but
+% WITHOUT ANY WARRANTY; without even the implied warranty of
+% MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+% General Public License for more details.
+%
+% You should have received a copy of the GNU General Public License
+% along with this program.  If not, see <http://www.gnu.org/licenses/>.
+%
+@* Common definitions for MIX assembler and simulator.
+
+The purpose is to simulate TAOCP MIX machine with 64 distinct
+values per byte, 5 bytes per machine word and with address space
+of 4000 words.
+
+Internally, each byte will be represented by 6 bits, with a value
+range of |000| to |077|. Sign is represented by a single bit, |0| for
+plus or |1| for minus in the first position of the real word.
+
+A word will then occupy 4 actual 8-bit hardware bytes of the real machine
+and leave one bit (the second bit of the real word) over for possible
+future use.
+
+@d MEMSIZE 4000
+@d BYTESIZE 6
+@d BYTESPERWORD 5
+@d B1 (1<<BYTESIZE)
+@d B2 B1*B1
+@d B3 B2*B1
+@d B5 B2*B3
+@d MINUS ((unsigned)2*B5)
+@d PLUS 0
+@d SIGN(a) (a&(MINUS))      /* sign of word */
+@d MAG(a)  (a&(B5-1))       /* magnitude of word */
+@d T 1                      /* True value */
+@d F 0                      /* False value */
+
+@ |struct mixop| keeps data for a single MIX instruction. It is used
+by assembler (|mixal|) to generate machine code and by terminal
+emulator (|mixsim -t|) to disassemble instructions.
+
+@c
+struct mix_op {  
+     char *name;       /* |OP|: Option mnemonic name */
+     int f;            /* |(F)|: Default field notation */
+     int c;            /* |C|: Opcode */
+     int notation;     /* Field notation: 0 - (n), 1 - (l:r) */
+};
+
+@ External data provided by the automatically generated file optab.c
+@c 
+extern struct mix_op mix_optab[]; /* Array of available \.{MIX} instructions */
+extern int op_count;              /* Number of entries in |mix_optab| */
+extern int dd_cnt[];   /* Number of bytes in instruction. */
+extern int dd_ent[];   /* Index to |mix_optab| */
+extern char mixalf[];  /* \.{MIX} character set */

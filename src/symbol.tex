@@ -1,0 +1,438 @@
+\input cwebmac
+% This file is part of mix
+% Copyright (C) 2005, 2007 Sergey Poznyakoff
+%
+% This program is free software; you can redistribute it and/or modify
+% it under the terms of the GNU General Public License as published by
+% the Free Software Foundation; either version 3 of the License, or
+% (at your option) any later version.
+%
+% This program is distributed in the hope that it will be useful,
+% but WITHOUT ANY WARRANTY; without even the implied warranty of
+% MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+% GNU General Public License for more details.
+%
+% You should have received a copy of the GNU General Public License
+% along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+
+\N{1}{1}SYMBOL TABLES FOR MIX ASSEMBLER.
+
+\Y\fi
+
+\M{2}Header files.
+\Y\B\8\#\&{include} \.{<stdlib.h>}\6
+\8\#\&{include} \.{<stdio.h>}\6
+\8\#\&{include} \.{<string.h>}\6
+\8\#\&{include} \.{<mix.h>}\6
+\8\#\&{include} \.{<mixasm.h>}\6
+\8\#\&{include} \.{"xalloc.h"}\par
+\fi
+
+\M{3}\PB{\\{hash\_size}} defines a sequence of symbol table sizes. These are
+prime numbers,
+the distance between each pair of them grows exponentially, starting from 64.
+Hardly someone will need more than 16411 symbols, and even if someone will,
+it is easy enough to add more numbers to the sequence.
+
+\Y\B\&{static} \&{unsigned} \&{int} \\{hash\_size}[\,]${}\K\{\T{37},\39\T{101},%
+\39\T{229},\39\T{487},\39\T{1009},\39\T{2039},\39\T{4091},\39\T{8191},\39%
+\T{16411}\}{}$;\par
+\fi
+
+\M{4}\PB{\\{max\_rehash}} keeps the number of entries in \PB{\\{hash\_size}}
+table.
+\Y\B\&{static} \&{unsigned} \&{int} \\{max\_rehash}${}\K{}$\&{sizeof} (\\{hash%
+\_size})${}/{}$\&{sizeof} (\\{hash\_size}[\T{0}]);\par
+\fi
+
+\M{5}\PB{\\{hash\_num}} is the index to \PB{\\{hash\_size}} table. Current size
+of the
+\PB{\&{symtab}} table is thus \PB{\\{hash\_size}[\\{hash\_num}]}
+
+\Y\B\&{static} \&{unsigned} \&{int} \\{hash\_num};\par
+\fi
+
+\M{6}The symbol table is used to keep two kinds of data: \.{MIXAL} reserved
+keywords (\PB{\&{struct} \\{mix\_op}}) and symbols defined in the program. So,
+each
+symbol table entry can be in one of three states:
+
+\Y\B\4\D$\.{UNDEFINED}$ \5
+\T{0}\C{ The entry is not defined }\par
+\B\4\D$\.{KEYWORD}$ \5
+\T{1}\C{ The entry holds a \.{MIXAL} reserved keyword }\par
+\B\4\D$\.{SYMBOL}$ \5
+\T{2}\C{ The entry holds a symbol defined in user program }\par
+\fi
+
+\M{7}Both \PB{\&{struct} \\{mix\_op}} and \PB{\&{struct} \&{Symbol}} are
+designed so their first
+member is \PB{\&{char} ${}{*}\\{name}$}, i.e. the symbol name. So it is safe to
+enclose
+them into a union.
+
+A symbol table entry has the following structure;
+
+\Y\B\&{struct} \&{symtab} ${}\{{}$\1\6
+\&{int} \\{state};\C{ Entry state }\6
+\&{union} ${}\{{}$\1\6
+\&{char} ${}{*}\\{name}{}$;\C{ Name of the symbol if \PB{$\\{state}\I%
+\.{UNDEFINED}$} }\6
+\&{Symbol} \\{sym};\C{ if \PB{$\\{state}\E\.{SYMBOL}$} }\6
+\&{struct} \\{mix\_op} \\{op};\C{ if \PB{$\\{state}\E\.{KEYWORD}$} }\2\6
+${}\}{}$ \|v;\2\6
+${}\};{}$\6
+\&{static} \&{struct} \&{symtab} ${}{*}\\{symtable}{}$;\C{ Table of symbols }%
+\par
+\fi
+
+\M{8}Forward declaration for \PB{\\{lookup\_or\_install}}
+\Y\B\&{static} \&{struct} \&{symtab} ${}{*}{}$\\{lookup\_or\_install}(\&{int} %
+\\{type}${},\39{}$\&{char} ${}{*}\\{name},\39{}$\&{int} \\{install});\par
+\fi
+
+\M{9}Hash function. This should probably be revised.
+\Y\B\&{unsigned} \\{hash}(\&{char} ${}{*}\\{name}){}$\1\1\2\2\6
+${}\{{}$\1\6
+\&{unsigned} \|i;\7
+\&{for} ${}(\|i\K\T{0};{}$ ${}{*}\\{name};{}$ ${}\\{name}\PP){}$\5
+${}\{{}$\1\6
+${}\|i\MRL{{\LL}{\K}}\T{1};{}$\6
+${}\|i\MRL{{\XOR}{\K}}{*}{}$(\&{unsigned} \&{char} ${}{*}){}$ \\{name};\6
+\4${}\}{}$\2\6
+\&{return} \|i${}\MOD\\{hash\_size}[\\{hash\_num}];{}$\6
+\4${}\}{}$\2\par
+\fi
+
+\M{10}\PB{\\{rehash}} is called when the symbol table becomes full. Its purpose
+is
+to select new table size, allocate storage for the resized table, install
+to it all data stored so far and reclaim the unused memory.
+
+\PB{\\{rehash}} returns \PB{\T{0}} on success and \PB{\T{1}} otherwise.
+
+\Y\B\&{int} \\{rehash}(\,)\1\1\2\2\6
+${}\{{}$\1\6
+\&{struct} \&{symtab} ${}{*}\\{old\_symtab}\K\\{symtable};{}$\6
+\&{struct} \&{symtab} ${}{*}\\{sp};{}$\6
+\&{unsigned} \&{int} \|i;\7
+\&{if} ${}(\PP\\{hash\_num}\G\\{max\_rehash}){}$\5
+${}\{{}$\1\6
+\&{return} \T{1};\6
+\4${}\}{}$\2\6
+${}\\{symtable}\K\\{calloc}(\\{hash\_size}[\\{hash\_num}],\39{}$\&{sizeof} (%
+\\{symtable}[\T{0}]));\6
+\&{if} ${}(\R\\{symtable}){}$\5
+${}\{{}$\1\6
+${}\\{fprintf}(\\{stderr},\39\.{"not\ enough\ memory\\n}\)\.{"});{}$\6
+\\{abort}(\,);\6
+\4${}\}{}$\2\6
+\&{if} (\\{old\_symtab})\5
+${}\{{}$\1\6
+\&{for} ${}(\|i\K\T{0};{}$ ${}\|i<\\{hash\_size}[\\{hash\_num}-\T{1}];{}$ ${}%
+\|i\PP){}$\5
+${}\{{}$\1\6
+\&{if} ${}(\\{old\_symtab}[\|i].\\{state}\I\.{UNDEFINED}){}$\5
+${}\{{}$\1\6
+${}\\{sp}\K\\{lookup\_or\_install}(\\{old\_symtab}[\|i].\\{state},\39\\{old%
+\_symtab}[\|i].\|v.\\{name},\39\T{1});{}$\6
+${}\\{sp}\MG\\{state}\K\\{old\_symtab}[\|i].\\{state};{}$\6
+${}\\{memcpy}({\AND}\\{sp}\MG\|v,\39{\AND}\\{old\_symtab}[\|i].\|v,\39{}$%
+\&{sizeof} \\{sp}${}\MG\|v);{}$\6
+\4${}\}{}$\2\6
+\4${}\}{}$\2\6
+\\{free}(\\{old\_symtab});\6
+\4${}\}{}$\2\6
+\&{return} \T{0};\6
+\4${}\}{}$\2\par
+\fi
+
+\M{11}Look up symbol \PB{\\{name}} in the table. If not found and \PB{%
+\\{install}} is not 0,
+insert the symbol into the table.
+
+Basically it uses algorithm L from TAOCP 6.4, except that if the insertion
+fails the table is rehashed and the attempt is retried. The process continues
+until the symbol is successfully inserted or the table reaches maximum allowed
+size.
+
+\Y\B\&{static} \&{struct} \&{symtab} ${}{*}{}$\\{lookup\_or\_install}(\&{int} %
+\\{state}${},\39{}$\&{char} ${}{*}\\{name},\39{}$\&{int} \\{install})\1\1\2\2\6
+${}\{{}$\1\6
+\&{unsigned} \|i${},{}$ \\{pos};\7
+\&{if} ${}(\R\\{symtable}){}$\5
+${}\{{}$\1\6
+\&{if} (\\{install})\5
+${}\{{}$\1\6
+\&{if} (\\{rehash}(\,))\1\5
+\&{return} ${}\NULL;{}$\2\6
+\4${}\}{}$\2\6
+\&{else}\1\5
+\&{return} ${}\NULL;{}$\2\6
+\4${}\}{}$\2\6
+${}\\{pos}\K\\{hash}(\\{name});{}$\6
+\&{for} ${}(\|i\K\\{pos};{}$ ${}\\{symtable}[\|i].\\{state}\I\.{UNDEFINED};{}$ %
+\,)\5
+${}\{{}$\1\6
+\&{if} ${}(\\{symtable}[\|i].\\{state}\E\\{state}\W\\{strcmp}(\\{symtable}[%
+\|i].\|v.\\{name},\39\\{name})\E\T{0}){}$\1\5
+\&{return} ${}{\AND}\\{symtable}[\|i];{}$\2\6
+\&{if} ${}(\PP\|i\G\\{hash\_size}[\\{hash\_num}]){}$\1\5
+${}\|i\K\T{0};{}$\2\6
+\&{if} ${}(\|i\E\\{pos}){}$\1\5
+\&{break};\2\6
+\4${}\}{}$\2\6
+\&{if} ${}(\R\\{install}){}$\1\5
+\&{return} ${}\NULL;{}$\2\6
+\&{if} ${}(\\{symtable}[\|i].\\{state}\E\.{UNDEFINED}){}$\1\5
+\&{return} ${}{\AND}\\{symtable}[\|i];{}$\2\6
+\&{if} (\\{rehash}(\,))\1\5
+\&{return} ${}\NULL;{}$\2\6
+\&{return} \\{lookup\_or\_install}${}(\\{state},\39\\{name},\39\\{install});{}$%
+\6
+\4${}\}{}$\2\par
+\fi
+
+\M{12}Look up a symbol \PB{\\{name}}.
+\Y\B\&{Symbol} ${}{*}{}$\\{lookup}(\&{char} ${}{*}\\{name}){}$\1\1\2\2\6
+${}\{{}$\1\6
+\&{struct} \&{symtab} ${}{*}\\{sp}\K\\{lookup\_or\_install}(\.{SYMBOL},\39%
+\\{name},\39\T{0});{}$\7
+\&{return} \\{sp}${}\?{\AND}\\{sp}\MG\|v.\\{sym}:\NULL;{}$\6
+\4${}\}{}$\2\par
+\fi
+
+\M{13}Look up an opcode \PB{\\{name}}.
+\Y\B\&{struct} \\{mix\_op} ${}{*}{}$\\{lookup\_op}(\&{char} ${}{*}\\{name}){}$%
+\1\1\2\2\6
+${}\{{}$\1\6
+\&{struct} \&{symtab} ${}{*}\\{sp}\K\\{lookup\_or\_install}(\.{KEYWORD},\39%
+\\{name},\39\T{0});{}$\7
+\&{return} \\{sp}${}\?{\AND}\\{sp}\MG\|v.\\{op}:\NULL;{}$\6
+\4${}\}{}$\2\par
+\fi
+
+\M{14}Install a symbol \PB{\\{name}} with value \PB{\|v}, defined on line \PB{%
+\|l}.
+\Y\B\&{Symbol} ${}{*}{}$\\{install}(\&{char} ${}{*}\\{name},\39{}$\&{int} %
+\|v${},\39{}$\&{int} \|l)\1\1\2\2\6
+${}\{{}$\1\6
+\&{struct} \&{symtab} ${}{*}\\{sp}\K\\{lookup\_or\_install}(\.{SYMBOL},\39%
+\\{name},\39\T{1});{}$\7
+\&{if} ${}(\R\\{sp}){}$\1\5
+\&{return} ${}\NULL;{}$\2\6
+\&{if} ${}(\\{sp}\MG\\{state}\E\.{UNDEFINED}){}$\5
+${}\{{}$\C{ new entry }\1\6
+${}\\{sp}\MG\\{state}\K\.{SYMBOL};{}$\6
+${}\\{memset}({\AND}\\{sp}\MG\|v.\\{sym},\39\T{0},\39{}$\&{sizeof} \\{sp}${}\MG%
+\|v.\\{sym});{}$\6
+${}\\{sp}\MG\|v.\\{sym}.\\{name}\K\\{xmalloc}(\\{strlen}(\\{name})+\T{1});{}$\6
+${}\\{strcpy}(\\{sp}\MG\|v.\\{sym}.\\{name},\39\\{name});{}$\6
+${}\\{sp}\MG\|v.\\{sym}.\\{value}\K\|v;{}$\6
+${}\\{sp}\MG\|v.\\{sym}.\\{line}\K\|l;{}$\6
+${}\\{sp}\MG\|v.\\{sym}.\\{reflist}\K\T{0};{}$\6
+\4${}\}{}$\2\6
+\&{return} ${}{\AND}\\{sp}\MG\|v.\\{sym};{}$\6
+\4${}\}{}$\2\par
+\fi
+
+\M{15}Install \.{MIXAL} opcode \PB{\\{op}}
+\Y\B\&{void} \\{install\_op}(\&{struct} \\{mix\_op} ${}{*}\\{op}){}$\1\1\2\2\6
+${}\{{}$\1\6
+\&{struct} \&{symtab} ${}{*}\\{sp}\K\\{lookup\_or\_install}(\.{KEYWORD},\39%
+\\{op}\MG\\{name},\39\T{1});{}$\7
+\&{if} ${}(\R\\{sp}){}$\1\5
+\\{abort}(\,);\2\6
+\&{if} ${}(\\{sp}\MG\\{state}\E\.{UNDEFINED}){}$\5
+${}\{{}$\C{ new entry }\1\6
+${}\\{sp}\MG\\{state}\K\.{KEYWORD};{}$\6
+${}\\{sp}\MG\|v.\\{op}\K{*}\\{op};{}$\6
+\4${}\}{}$\2\6
+\&{else}\1\5
+\\{abort}(\,);\2\6
+\4${}\}{}$\2\par
+\fi
+
+\M{16}Iterate over all entries with state \PB{\.{SYMBOL}}. Call user-supplied
+function \PB{\\{fun}} for each found symbol.
+
+Stop when the entire symbol table is scaned or \PB{\\{fun}} returns non-0,
+whichever happens first.
+
+Return number of symbols processed.
+\Y\B\&{unsigned} ${}\\{iterate}(\&{int}({*}\\{fun}){}$(\&{Symbol} ${}{*})){}$\1%
+\1\2\2\6
+${}\{{}$\1\6
+\&{int} \|i;\6
+\&{unsigned} \\{count};\7
+\&{for} ${}(\|i\K\T{0},\39\\{count}\K\T{0};{}$ ${}\|i<\\{hash\_size}[\\{hash%
+\_num}];{}$ ${}\|i\PP){}$\1\6
+\&{if} ${}(\\{symtable}[\|i].\\{state}\E\.{SYMBOL}\W\\{fun}({\AND}\\{symtable}[%
+\|i].\|v.\\{sym})){}$\1\5
+\&{break};\2\2\6
+\&{return} \\{count};\6
+\4${}\}{}$\2\par
+\fi
+
+\M{17}Comparator function for an array \PB{\&{Symbol} ${}{*}{*}$}
+\Y\B\&{static} \&{int} \\{compsym}(\&{const} \&{void} ${}{*}\|a,\39{}$\&{const}
+\&{void} ${}{*}\|b){}$\1\1\2\2\6
+${}\{{}$\1\6
+\&{Symbol} ${}{*\&{const}\ }{*}\\{sa}\K\|a;{}$\6
+\&{Symbol} ${}{*\&{const}\ }{*}\\{sb}\K\|b;{}$\7
+\&{return} ${}({*}\\{sa})\MG\\{value}-({*}\\{sb})\MG\\{value};{}$\6
+\4${}\}{}$\2\par
+\fi
+
+\M{18}Compress the hash table into an array of symbols, sorted by their value.
+Allocates memory.
+\Y\B\&{Symbol} ${}{*}{*}\\{sort\_symbols}(\,){}$\1\1 $\{$ \&{int} \|i${},{}$ %
+\|j;\6
+\&{unsigned} \\{count};\6
+\&{Symbol} ${}{*}{*}\\{sp}{}$;\par
+\fi
+
+\M{19}First pass: count existing symbols.
+\Y\B\&{for} ${}(\|i\K\T{0},\39\\{count}\K\T{0};{}$ ${}\|i<\\{hash\_size}[%
+\\{hash\_num}];{}$ ${}\|i\PP){}$\1\6
+\&{if} ${}(\\{symtable}[\|i].\\{state}\E\.{SYMBOL}){}$\1\5
+${}\\{count}\PP;{}$\2\2\6
+${}\\{sp}\K\\{calloc}(\\{count}+\T{1},\39{}$\&{sizeof} ${}({*}\\{sp}));{}$\6
+\&{if} ${}(\R\\{sp}){}$\5
+${}\{{}$\1\6
+${}\\{fprintf}(\\{stderr},\39\.{"not\ enough\ memory\\n}\)\.{"});{}$\6
+\\{abort}(\,);\6
+\4${}\}{}$\2\par
+\fi
+
+\M{20}Second pass: fill in the return array.
+\Y\B\&{for} ${}(\|i\K\|j\K\T{0};{}$ ${}\|i<\\{hash\_size}[\\{hash\_num}];{}$
+${}\|i\PP){}$\1\6
+\&{if} ${}(\\{symtable}[\|i].\\{state}\E\.{SYMBOL}){}$\1\5
+${}\\{sp}[\|j\PP]\K{\AND}\\{symtable}[\|i].\|v.\\{sym};{}$\2\2\6
+${}\\{sp}[\|j]\K\NULL{}$;\C{ Mark end of data }\par
+\fi
+
+\M{21}Third pass: sort the array and return.
+\Y\B$\\{qsort}(\\{sp},\39\\{count},\39{}$\&{sizeof} ${}{*}\\{sp},\39%
+\\{compsym});{}$\6
+\&{return} \\{sp}; $\}{}$\par
+\fi
+
+\N{2}{22}Reference functions.
+
+\Y\B\4\D$\\{getnext}(\|a)$ \5
+$((\|a)\MG\\{next}{}$)\par
+\B\4\D$\\{setnext}(\|a,\|l)$ \5
+$(\|a\MG\\{next}\K\|l,\39\|l\K\|a{}$)\par
+\Y\B\&{typedef} \&{struct} \&{list} ${}\{{}$\1\6
+\&{struct} \&{list} ${}{*}\\{next};{}$\2\6
+${}\}{}$ \&{List};\par
+\fi
+
+\M{23}Quicksort routine for linked lists. Based on the general-purpose routine
+by Jon Guthrie.
+\Y\B\&{List} ${}{*}$ \\{sortl} ( \&{List} ${}{*}{}$\1\1 \&{list} $,$ $%
+\&{int}({*}\\{compare})(\,)$ ) $\{$ \&{List} ${}{*}\\{low\_list},{}$ ${}{*}%
+\\{high\_list},{}$ ${}{*}\\{current},{}$ ${}{*}\\{pivot},{}$ ${}{*}\\{temp};{}$%
+\6
+\&{int} \\{result};\7
+\&{if} ${}(\R\&{list}){}$\1\5
+\&{return} ${}\NULL{}$;\2\par
+\fi
+
+\M{24}Find the first element that doesn't have the same value as the first
+element.
+\Y\B\\{current} $\K$ \&{list}; \&{do} $\{$ $\\{current}\K\\{getnext}(%
+\\{current});$ \&{if} ${}(\R\\{current})$ \&{return} \&{list}; $\}$ \6
+\&{while} ${}(\T{0}\E(\\{result}\K\\{compare}(\&{list},\39\\{current}))){}$\1\5
+;\2\par
+\fi
+
+\M{25}My pivot value is the lower of the two.  This insures that the sort will
+always terminate by guaranteeing that there will be at least one member of
+both of the sublists.
+\Y\B\&{if} ${}(\\{result}>\T{0}){}$\1\5
+${}\\{pivot}\K\\{current};{}$\2\6
+\&{else} \\{pivot} $\K$ \&{list};\par
+\fi
+
+\M{26}Initialize the sublist pointers.
+\Y\B$\\{low\_list}\K\\{high\_list}\K\NULL{}$;\par
+\fi
+
+\M{27}Now, separate the items into the two sublists
+\Y\B\\{current} $\K$ \&{list};\7
+\&{while} (\\{current})\5
+${}\{{}$\1\6
+${}\\{temp}\K\\{getnext}(\\{current});{}$\6
+\&{if} ${}(\\{compare}(\\{pivot},\39\\{current})<\T{0}){}$\5
+${}\{{}$\C{ add one to the high list }\1\6
+${}\\{setnext}(\\{current},\39\\{high\_list});{}$\6
+${}\\{high\_list}\K\\{current};{}$\6
+\4${}\}{}$\2\6
+\&{else}\5
+${}\{{}$\C{ add one to the low list }\1\6
+${}\\{setnext}(\\{current},\39\\{low\_list});{}$\6
+${}\\{low\_list}\K\\{current};{}$\6
+\4${}\}{}$\2\6
+${}\\{current}\K\\{temp};{}$\6
+\4${}\}{}$\2\par
+\fi
+
+\M{28}And, recursively call the sort for each of the two sublists.
+\Y\B$\\{low\_list}\K\\{sortl}(\\{low\_list},\39\\{compare});{}$\6
+${}\\{high\_list}\K\\{sortl}(\\{high\_list},\39\\{compare}){}$;\par
+\fi
+
+\M{29}Now, I have to put the "high" list after the end of the "low" list.
+To do that, I first have to find the end of the "low" list...
+\Y\B$\\{current}\K\\{temp}\K\\{low\_list};{}$\6
+\&{while} (\T{1})\5
+${}\{{}$\1\6
+${}\\{current}\K\\{getnext}(\\{current});{}$\6
+\&{if} ${}(\R\\{current}){}$\1\5
+\&{break};\2\6
+${}\\{temp}\K\\{current};{}$\6
+\4${}\}{}$\2\par
+\fi
+
+\M{30}Then, I put the "high" list at the end of the low list.
+\Y\B$\\{setnext}(\\{temp},\39\\{high\_list});{}$\6
+\&{return} \\{low\_list}; $\}{}$\par
+\fi
+
+\M{31}Compare two reference entries
+\Y\B\&{static} \&{int} \\{compref}(\&{struct} \&{ref} ${}{*}\|a,\39{}$%
+\&{struct} \&{ref} ${}{*}\|b){}$\1\1\2\2\6
+${}\{{}$\1\6
+\&{return} \|a${}\MG\\{line}-\|b\MG\\{line};{}$\6
+\4${}\}{}$\2\par
+\fi
+
+\M{32}
+\Y\B\&{void} \\{sort\_refs}(\&{Symbol} ${}{*}\|s){}$\1\1\2\2\6
+${}\{{}$\1\6
+${}\|s\MG\\{xref}\K{}$(\&{struct} \&{ref} ${}{*}){}$ \\{sortl}((\&{List}
+${}{*}){}$ \|s${}\MG\\{xref},\39\\{compref});{}$\6
+\4${}\}{}$\2\par
+\fi
+
+\M{33}
+\Y\B\&{ref} ${}{*}{}$\\{addref}(\&{ref} ${}{*}\|p,\39{}$\&{int} \\{loc}${},%
+\39{}$\&{int} \\{line})\1\1\2\2\6
+${}\{{}$\1\6
+\&{ref} ${}{*}\\{sp};{}$\7
+${}\\{sp}\K{}$(\&{ref} ${}{*}){}$ \\{xmalloc}(\&{sizeof}(\&{ref}));\6
+${}\\{sp}\MG\\{next}\K\|p;{}$\6
+${}\\{sp}\MG\\{address}\K\\{loc};{}$\6
+${}\\{sp}\MG\\{line}\K\\{line};{}$\6
+\&{return} \\{sp};\6
+\4${}\}{}$\2\par
+\fi
+
+
+\inx
+\fin
+\con

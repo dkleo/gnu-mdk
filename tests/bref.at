@@ -1,0 +1,37 @@
+# This file is part of MIX testsuite. -*- Autotest -*-
+# Copyright (C) 2005, 2007 Sergey Poznyakoff
+#
+# This program is free software; you can redistribute it and/or
+# modify it under the terms of the GNU General Public License as
+# published by the Free Software Foundation; either version 3, or (at
+# your option) any later version.
+#
+# This program is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+AT_SETUP([Resolving backward references])
+AT_KEYWORDS([bref])
+
+MIXAL_CHECK([* Test backward references
+	ORIG 1000
+	JMP  BREF
+X	CON  0
+Y	CON  0
+	ORIG 2000
+BREF	ENTA 1
+	STA  X
+	INCA 1
+	STA  Y
+	HLT
+	END  BREF
+],
+[BREF.110000524288039
+BREF.5200000002623200262406488000026219202626686320000000133
+TRANS02000])
+
+AT_CLEANUP

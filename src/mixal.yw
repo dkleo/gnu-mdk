@@ -1,0 +1,1040 @@
+% This file is part of MIX
+% Copyright (C) 1998, 1999, 2000 Douglas Laing
+% Copyright (C) 2000, 2005, 2007 Sergey Poznyakoff
+%
+% This program is free software; you can redistribute it and/or
+% modify it under the terms of the GNU General Public License as
+% published by the Free Software Foundation; either version 3, or (at
+% your option) any later version.
+%
+% This program is distributed in the hope that it will be useful, but
+% WITHOUT ANY WARRANTY; without even the implied warranty of
+% MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+% General Public License for more details.
+%
+% You should have received a copy of the GNU General Public License
+% along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+@q This file is a risky attempt of writing YACC sources in literate          @>
+@q programming style. Fortunately the syntax of YACC sources is C-like       @>
+@q enough for CTANGLE/CWEAVE to cope with it. However, several precautions   @>
+@q must be met. Notably, YACC separators (%%)                                @>
+@q seem to grief CWEAVE, so they must be protected by @@=.                   @>
+
+@*MIXAL assembler.
+
+@q Declare data types as such.@>
+@s FILE int
+@s Symbol int
+@s ref int
+@s line c /* line is a structure member */
+@q Declare YACC keywords as C types to help cweave handle them.@>
+@s token int
+@s left int
+@s right int
+@s nonassoc int
+@s prec int
+@s type int
+
+@*1 Leading C section.
+@c
+%{
+#ifdef HAVE_CONFIG_H
+# include <config.h>
+#endif
+#include <stdlib.h> 
+#include <stdio.h>
+#include <stdarg.h>
+#include <sys/stat.h>
+#include <errno.h>
+#include <unistd.h>
+#include <fcntl.h>     
+#include <ctype.h>
+#include <mix.h>     
+#include <mixasm.h>
+#include "getopt.h"
+#include "string.h"
+#include "error.h"
+#include "progname.h"
+#include "xalloc.h"
+
+@
+@d update_memory(A) memory[location_counter]=(A); lines[lineno]=location_counter++;
+@d LIST_SUFFIX ".lst"
+
+@ Global variables.
+@c
+@h
+char  *source_file = NULL;   /* Name of the source file */
+
+char  *listfile;               /* Name of the source listing file */
+FILE  *lst;                    /* Listing file stream */
+char  *outfile;                /* Name of the output file */
+
+int lineno = 1;                /* Current line in the source file */
+int location_counter = 0;      /* Current memory cell index */
+int start_location = MEMSIZE;  /* Program start location */
+unsigned  memory[MEMSIZE];     /* \.{MIX} memory array */
+int  lines[MEMSIZE];           /* source line |@t$\Rightarrow$@>| memory location index */  
+int opfield;                   /* Keep |F| field of the instruction being processed */
+int error_count;               /* Number of errors during this assembly */
+
+@ Variables controlled by command line options
+@c
+int list = 0;         /* -l: Produce listing */
+int xref = 0;         /* -x: Produce cross-reference listing */
+int writeraw = 0;     /* -r: Write raw code */
+
+@ Declarate functions defined in the C trailer.
+@c
+FILE *create_temp(char *tmpl);
+int word_s(unsigned w);
+void symbols(void);
+void end_routine(int start);
+int num(char *text);
+void listing();
+void dumpsymtab(FILE *fp);
+void resolve_forward(Symbol *f);
+ 
+unsigned add_mix(unsigned a, unsigned b);
+unsigned sub_mix(unsigned a, unsigned b);
+unsigned div_mix(unsigned a, unsigned b);
+unsigned mul_mix(unsigned a, unsigned b);
+unsigned w_eval(unsigned a, unsigned b, int f);
+
+@ Leading C section ends here
+@c
+%}
+
+@*1 \.{YACC} DECLARATIONS.
+
+@ \.{Yacc} stack union.
+@c
+%union {
+     unsigned val;           /* Numeric value. */
+     Symbol *symp;           /* Symblol */
+     char *txt;              /* Comment text */
+     char literal[6];        /* Literal value */
+     struct mix_op *opcode;
+}
+
+@ Tokens.
+@c
+%token <symp> DEFINED_SYMBOL      @/
+%token <symp> LOCAL_SYMBOL        @/
+%token <symp> FUTURE_REFERENCE    @/
+%token <symp> LOC                 @/
+%token <symp> END                 @/
+%token <val> UNDEF                @/
+%token <val> DEF                  @/
+%token <val> NUMBER               @/
+%token <val> ASTERISK             @/
+%token <txt> TEXT                 @/
+%token <literal> ALF PSEUDO       @/ 
+%token <opcode> OPCODE            @/
+%token BOGUS                      @/
+%left '-' '+'                     @/
+%left '*' '/'                     @/
+%left ':' SLASHES                 @/
+%nonassoc UMINUS                  @/ 
+
+@ Non-terminal symbols.
+@c
+%type  <val>   expression                    @/
+%type  <val>   atomic_expression             @/
+%type  <val>   a_part i_part f_part w_value  @/
+%type <symp>   literal_constant              @/
+%type <symp>   label                         @/
+%type <opcode> op                            @/
+%type <literal> pseudo                       @/
+
+@=%%@>
+
+@*1 GRAMMAR.
+
+@q Declare type back to normal. It will be used as a structure member from here on. @>
+@s type normal
+@s error normal
+
+@ A \.{MIX} program consists of statements, separated by newlines.
+@c
+statement_list: statement comment eol @/
+              | statement_list  statement comment eol @/
+              ;
+
+@ Error recovery occurs at the topmost level, when a newline character is read.
+@c
+statement_list: statement_list error eol
+                {
+		     yyerrok;
+		     yyclearin;
+		     reset_lex();
+		}
+
+@ Any number of newlines is allowed as statement separator.
+@c
+eol           : '\n'
+                { lineno++; }
+              | eol '\n'
+	        { lineno++; }
+              ;
+
+@ This statement is assembled into a \.{MIX} instruction.
+@c
+statement     : label op a_part i_part f_part
+                {
+		     unsigned word;
+		     
+		     word = $2->c | SIGN($3) | MAG($3)*B3 | $4*B2 | $5*B1;  
+		     update_memory(word);
+		}
+              ;
+
+@ A {\it pseudo-statement\/} is an instruction to assembler itself. 
+@c
+statement     : label pseudo w_value
+                {
+		     if (!strcmp($2,"EQU")) {
+			  /* if no label wizard debug */
+			  if ($1 == NULL)
+			       dumpsymtab(stderr);
+			  else
+			       $1->value = $3;
+		    } else if (!strcmp($2,"ORIG")) {
+			 location_counter = word_s($3);
+		    } else if (!strcmp($2,"CON")) {
+			 update_memory($3);
+		    } else if (!strcmp($2,"END")) {
+			 if ($1 != NULL)
+			      $1->type = END;
+                         start_location = $3;
+                         YYACCEPT; /* Ignore any input after END statement */
+		    }
+		}
+              | label ALF
+                {
+		     update_memory(num($2));
+		}
+              | ASTERISK { /* A no-op. Introduces a comment line. */; }
+              ;
+
+@
+@c
+label         : /* none */
+                {
+		     $$ = NULL;
+		}
+              | LOC
+                {
+		     if (localref($1->name, "FB")) {
+			  yyerror("invalid label");
+			  YYERROR;
+		     } 
+		     $1->type = DEF; 
+		     $1->line = lineno;
+		     $1->value = location_counter;
+		     $$ = $1; 
+		}
+              ;
+
+@
+@c
+comment       :  /* nothing */
+              | TEXT { ; } 
+              ;
+
+@
+@c
+op            : OPCODE
+                {
+		     opfield = $1->f; /* Preserve opcode for |f_part| */
+		}
+              ;
+
+@ |5| is the default |F| field for many \.{MIXAL} instructions. Actually, opfield is
+not needed for {\it pseudo-instructions}, it is here for the sake of completeness.
+@c
+pseudo        : PSEUDO
+                {
+		     opfield = 5; /* Preserve opfield for |f_part| */
+		}
+              ;
+  
+@ Compute arithmetic expressions.
+@c
+expression    : atomic_expression  
+              | '+'  atomic_expression %prec UMINUS
+                {
+		     $$ = $2;
+		}
+              | '-'  atomic_expression %prec UMINUS
+                {
+		     $$ = $2 ^ MINUS;
+		} 
+              | expression '+' atomic_expression
+                {
+		     $$ = add_mix($1, $3);
+		}
+              | expression '-' atomic_expression
+                {
+		     $$ = sub_mix($1, $3);
+		}
+              | expression ASTERISK atomic_expression %prec '*'
+                {
+		     $$ = mul_mix($1, $3);
+		}
+              | expression '/' atomic_expression
+                {
+		     $$ = div_mix($1, $3);
+		} 
+              | expression SLASHES atomic_expression 
+                {
+		     $$ = mul_mix($1, B5 / MAG($3));
+		}
+              | expression ':' atomic_expression
+                {
+		     $$ = add_mix(mul_mix($1, 8), $3);
+		}
+              ;
+
+@
+@c
+atomic_expression: NUMBER @/
+              |    ASTERISK
+                {
+		     $$ = location_counter;
+		}
+              | DEFINED_SYMBOL
+                {
+		     $$ = $1->value;
+		     if (xref)
+			  $1->xref = addref($1->xref, location_counter,
+					    lineno);
+		}
+              | LOCAL_SYMBOL
+                {
+		     $$ = $1->value;
+		}
+              ;  
+
+@ Process {\it address part\/} of an instruction.
+@c
+a_part        : /* empty */
+                {
+		     $$ = 0;
+		}
+              | expression
+              | FUTURE_REFERENCE
+                {
+		     $1->reflist = addref($1->reflist,location_counter,lineno);
+		     if (xref)
+			  $1->xref = addref($1->xref, location_counter,
+					    lineno);
+		     $$ = 0; /* Address part will be fixed later */
+		}
+              | literal_constant
+                {
+		     $$ = 0; /* Address part will be fixed later */
+		}
+              ;    
+
+@ {\it index part\/} of an instruction.
+@c
+i_part        : /* empty */
+                {
+		     $$ = 0;
+		}
+              | ',' expression
+                {
+		     $$ = $2;
+		}
+              ;    
+
+@ {\it field specification\/} of an instruction.
+@c
+f_part        : /* empty */
+                {
+		     $$ = opfield;
+		}
+              | '(' expression ')'
+                {
+		     $$ = $2;
+		}
+              ;    
+
+@
+@c
+w_value       : expression f_part
+                {
+		     $$ = w_eval(0, $1, $2);
+		}
+              | w_value ',' expression f_part
+                {
+		     $$ = w_eval($1, $3, $4);
+		}
+              ;
+
+@
+@c
+literal_constant: '=' w_value '='
+                {
+		     char literal[13];
+		     Symbol *s;
+		     
+		     sprintf(literal,"=%d=",word_s($2));
+		     if (!(s = lookup(literal)))
+			  s = install(literal,$2,lineno);
+		     s->reflist = addref(s->reflist,location_counter,lineno);
+		     if (xref)
+			  s->xref = addref(s->xref, location_counter, lineno);
+   		}
+                         
+              ;
+@/    
+@=%%@>
+
+@*1 C TRAILER.
+@
+@c
+unsigned
+add_mix(unsigned a, unsigned b)
+{ 
+     unsigned s, t;
+     
+     s = SIGN(a);
+     t = SIGN(b);
+     if (s != t) {
+	  if (MAG(a) > MAG(b)) {
+	       a = MAG(a) - MAG(b);   
+	       t = s;
+	  } else
+	       a = MAG(b) - MAG(a);   
+     } else 
+	  a = MAG(a) + MAG(b);
+     if (a > B5-1)
+	  yyerror("Arithmetic result greater than 1073741823");
+     return a|t;
+}
+
+@
+@c
+unsigned 
+sub_mix(unsigned a, unsigned b)
+{
+     b ^= MINUS;
+     return add_mix(a, b);
+}
+
+
+@
+@c
+unsigned
+mul_mix(unsigned a, unsigned b)
+{
+     unsigned s;
+     long long w;
+     s = SIGN(a) == SIGN(b) ? PLUS : MINUS;
+     if ((w = MAG(a)*MAG(b)) > B5-1)
+	  yyerror("Arithmetic result greater than 1073741823");
+     return s|MAG(w);
+}
+  
+@
+@c
+unsigned
+div_mix(unsigned a, unsigned b)
+{
+     return SIGN(a)|MAG(MAG(a)/MAG(b));	
+}
+   
+@
+@c
+unsigned
+w_eval(unsigned x, unsigned y, int f)
+{
+     int l, r;
+     unsigned sign, mask;
+
+     l = f/8;
+     r = f%8;
+     mask = B5 - 1;
+     if (l < 0 || l > r || r > 5)
+	  yyerror("Invalid F-part");
+     if ( l == 0 ) {   /* Is sign included ? */
+	  sign = MINUS & y;  
+	  l = 1;
+     } else sign = MINUS & x;       /* keep previous sign */
+     y <<= (4 - r + l) * BYTESIZE;  /* take correct no of bytes from right
+				       end */
+     y = MAG(y);                    /* truncate to 5 bytes */
+     y >>= (l - 1) * BYTESIZE;      /* position within word */
+     mask <<= (4 - r + l) * BYTESIZE; /* do same for mask */
+     mask = MAG(mask);                /* truncate to 5 bytes */
+     mask >>= (l - 1) * BYTESIZE;  
+     x &= ~mask;    /* mask off where y is to be inserted */
+     x = MAG(x);                     /* discard sign */
+     x |= y;        /* insert y */
+     x |= sign;     /* insert sign */
+     return x;
+}
+
+@
+@c
+int
+word_s(unsigned w)  /* convert mix word into a signed integer */
+{
+     if (w & MINUS)
+	  w = -MAG(w);         
+     return w;
+}
+
+@
+@c
+void
+warning_l(int line, char *s, char *t)
+{
+     if (t)
+         error_at_line (0, 0, source_file, line, "warning: %s %s", s, t);
+     else
+         error_at_line (0, 0, source_file, line, "warning: %s", s);
+}
+
+@
+@c
+void
+warning(char *s, char *t)
+{
+     warning_l(lineno, s, t);
+}
+
+@
+@c
+void
+parse_error_l(int line, char *s, char *t)
+{
+     if (t)
+         error_at_line (0, 0, source_file, line, "%s %s", s, t);
+     else
+         error_at_line (0, 0, source_file, line, "%s", s);
+     error_count++; 
+}
+
+@
+@c
+void
+parse_error(char *s, char *t)
+{
+     parse_error_l(lineno, s, t);
+}
+
+@
+@c
+int
+yyerror(char *s)  /* called for yacc syntax error */
+{
+     parse_error(s, NULL);
+}
+
+@
+@c
+void
+usage()
+{
+     printf("usage: mixal [OPTIONS] [input-file]\n");
+     printf("Assemble a MIX source file\n");
+     printf("\n");
+     printf("OPTIONS are:\n");
+     printf("  -l, --list                    produce a source listing\n");
+     printf("  --list-file=FILE              set listing file name\n");
+     printf("  -f, --force                   force generating object deck even if\n");
+     printf("                                assembled with errors\n");
+     printf("  -o, --output=FILE             set output file name\n");
+     printf("  -r, --raw-output              produce raw code output\n");
+     printf("  -x, --cross-reference, --xref output a cross reference\n");
+     
+     printf("\n");
+     printf("Debugging options:\n");
+     printf("  --debug-gram                  enable parser debugging\n");
+     printf("  --debug-lex                   enable lexer debugging\n"); 
+     printf("  -d LEVEL                      set debug level\n");
+	    
+     printf("\n");
+     printf("Informative options:\n");
+     printf("  -h, --help                    print this help summary\n");
+     printf("  -V, --version                 print program version and license info\n");
+     printf("\n");
+     printf("Report bugs to <%s>\n", PACKAGE_BUGREPORT);
+}
+
+@
+@c
+void
+init_keywords()
+{
+     int i;
+     for (i = 0; i < op_count; i++)
+	  install_op(&mix_optab[i]);
+}
+
+@ Declare long options
+@c 
+enum {
+     DEBUG_GRAM_OPTION = 256,
+     DEBUG_LEX_OPTION,
+     LIST_FILE_OPTION,
+};
+
+struct option options[] = {
+     { "debug-gram", no_argument, NULL, DEBUG_GRAM_OPTION },
+     { "debug-lex", no_argument, NULL, DEBUG_LEX_OPTION },
+     { "help", no_argument, NULL, 'h' },
+     { "list", no_argument, NULL, 'l' },
+     { "list-file", required_argument, NULL, LIST_FILE_OPTION },
+     { "force", no_argument, NULL, 'f' },
+     { "raw-output", no_argument, NULL, 'r' },
+     { "output", required_argument, NULL, 'o' },
+     { "version", no_argument, NULL, 'V' },
+     { "cross-reference", no_argument, NULL, 'x' },
+     { "xref", no_argument, NULL, 'x' },
+     { NULL }
+};
+	  
+
+
+@
+@c
+int
+main(int argc, char *argv[])
+{
+     int lexdebug = 0;
+     int i;
+     char *p;
+     int force = 0; /* Force generating object deck even if assembled with
+		       errors */
+
+     set_program_name(argv[0]);
+     while ((i = getopt_long(argc, argv, "d:fhlo:rVx", options, NULL)) != EOF) {
+	  switch (i) {
+	  case 'd':
+	       for (p = optarg; *p; p++) {
+		    switch (*p) {
+		    case 'y':
+			 yydebug = 1;
+			 break;
+
+		    case 'l':
+			 lexdebug = 1;
+			 break;
+
+		    default:
+			 error(1, 0, "invalid debugging level: %c\n", *p);
+			 break;
+		    }
+	       }
+	       break;
+
+	  case DEBUG_GRAM_OPTION:
+	       yydebug = 1;
+	       break;
+
+	  case DEBUG_LEX_OPTION:
+	       lexdebug = 1;
+	       break;
+	       
+	  case 'f':
+	       force = 1;
+	       break;
+	       
+	  case 'l':  /* produce a listing */
+	       list = 1;
+	       break;
+
+	  case LIST_FILE_OPTION:
+	       list = 1;
+	       listfile = optarg;
+	       break;
+
+	  case 'o':
+	       outfile = optarg;
+	       break;
+	       
+	  case 'r':
+	       writeraw = 1;
+	       break;
+	       
+	  case 'V':  /* show version */
+	       mix_version(program_name);
+	       exit(0);
+	       
+	  case 'x':  /* produce cross-reference listing */
+	       xref = 1;
+	       break;
+	       
+	  case 'h':
+	       usage();
+	       exit(0);
+	       
+	  default:
+	       exit(1);
+	  }
+     }
+     if (argc > optind) {
+	  FILE *fp;
+	  source_file = argv[optind];
+	  if ((fp = fopen(source_file, "r")) == NULL) 
+	       error(1, errno, "can't open %s", source_file);
+
+	  init_lex(fp, lexdebug);
+	  if (list && !listfile) {
+	       unsigned len;
+               char *base, *p;
+
+               base = strrchr(source_file, '/');
+               if (base)
+		    base++;
+	       else
+		    base = source_file;
+	       p = strrchr(base, '.');
+	       if (p)
+		    len = p - base;
+	       else
+		    len = strlen(base);
+	       listfile = xmalloc(len + sizeof(LIST_SUFFIX));
+	       memcpy(listfile, base, len);
+	       strcat(listfile, LIST_SUFFIX);
+	  }
+     } else
+	  init_lex(stdin, lexdebug);
+     if (list) {
+	  lst = create_temp("lstXXXXXX");
+	  if (!listfile)
+	       listfile = "mixal.lst";
+     }
+
+     for (i = 0; i < MEMSIZE; i++)
+	  lines[i] = -1;
+     init_keywords();
+     error_count += yyparse();
+
+     if (start_location == MEMSIZE) 
+          parse_error("No END statement in program", NULL);
+
+     if (error_count && !force)
+	  exit(1);
+
+     symbols();
+     end_routine(word_s(start_location));
+     
+     if (list)
+	  listing();
+     else if (xref)
+	  dumpsymtab(stderr);
+     
+     exit(error_count > 0);
+}
+
+@
+@c
+FILE *
+create_temp(char *tmpl)
+{
+     char *buf;
+     char *tmp;
+     int fd;
+     int save_mask;
+     
+     if ((tmp = getenv("TMP")) == NULL && (tmp = getenv("TEMP")) == NULL)
+	  tmp = "/tmp";
+     buf = xmalloc(strlen(tmp) + 1 + strlen(tmpl) + 1);
+     sprintf(buf, "%s/%s", tmp, tmpl);
+
+     save_mask = umask(077);
+     fd = mkstemp(buf);
+     umask(save_mask);
+
+     if (fd == -1)
+          error(1, errno, "can't create temporary file %s", tmp);
+     
+     unlink(buf);
+     free(buf);
+     return fdopen(fd, "w+");
+}
+
+@ Print a cell from location |i| to stream |fp| in listing format.
+@c
+void
+list_cell(FILE *fp, int i)
+{
+     int Av, Iv, Fv, Cv, Sv;
+     Sv = (memory[i] & MINUS) ? '-' : '+';
+     Av = (memory[i] & (B5 - 1))>>3*BYTESIZE;
+     Iv = (memory[i] & (B3 - 1))>>2*BYTESIZE;
+     Fv = (memory[i] & (B2 - 1))>>BYTESIZE;
+     Cv = (memory[i] & (B1 - 1));
+     fprintf(fp, "%4d: %c %4d %2d %2d %2d",
+	     i, Sv, Av, Iv, Fv, Cv);
+}
+
+@ Produce a program listing.
+@c
+void
+listing()
+{
+     FILE *fp;
+     char buf[512];
+     int i, l; 
+     int lastloc = 0;
+
+@ Ensure the temporary stream is zero-terminated.
+@c
+     fseek(lst, -1, SEEK_CUR);
+     if (fgetc(lst) != '\n')
+	  fputc('\n', lst);
+     rewind(lst);
+
+@ Open the output file.
+@c
+     fp = fopen(listfile, "w");
+     if (fp == NULL) 
+	  error(1, errno, "can't open %s", listfile);
+
+@ Produce a listing for each input line.
+@c
+     for (l = 1; l <= lineno; l++) {
+	  if ((i = lines[l]) != -1) {
+	       list_cell(fp, i);
+	       fprintf(fp, "   %3d ", l);
+	       lastloc = i;
+	  } else
+	       fprintf(fp, "%23s %3d ", " ", l);
+	
+	  if (fgets(buf, sizeof(buf), lst)) 
+	       fputs(buf, fp);
+	  else
+	       fputs("\n", fp);
+     }
+
+@ Produce a listing for each generated location.
+@c
+     for (i = lastloc + 1; i < location_counter; i++) {
+	  list_cell(fp, i);
+	  fputs("\n", fp);
+     }
+
+@ Create a symbol table.
+@c
+     dumpsymtab(fp);
+
+@ Close the listing file and finish.
+@c
+     fclose(fp);
+}
+
+
+@
+@c
+void
+dumpsymtab(FILE *fp)
+{
+     Symbol **symbols = sort_symbols();
+     int i;
+     ref *refp;
+  
+     fprintf(fp, "\nSymbol     Value  Line");
+     if (xref) {
+	  fprintf(fp, "  Referenced on line");
+     }
+     fprintf(fp, "\n");
+     for (i = 0; symbols[i]; i++) {
+	  Symbol *s = symbols[i];
+	  fprintf(fp, "%-10s  %4d %4d",
+		  s->name, word_s(s->value), s->line);
+	  if (xref) {
+	       sort_refs(s);
+	       for (refp = s->xref; refp; refp = refp->next) {
+		    if (refp->line != s->line)
+			 fprintf(fp, " %4d", refp->line);
+	       }
+	  }
+	  fprintf(fp, "\n");
+     }
+     free(symbols);
+}
+
+@
+@c
+void
+tlist(char *fmt, ...)
+{
+     va_list ap;
+     
+     if (!lst)
+	  return;
+     va_start(ap, fmt);
+     vfprintf(lst, fmt, ap);
+     va_end(ap);
+}
+
+@ Evaluate a symbol if it represents a w-expression. Insert necessary data. 
+@c
+int
+sym_eval_wexpr(Symbol *s)
+{
+     if (s->name[0] == '=') {
+	  memory[location_counter] = w_eval(0,s->value,5);
+	  s->value = location_counter++;
+     }
+     if (s->type == UNDEF) {
+	  if (s->name[0] == '|') { /* FIXME */
+               parse_error_l(s->line, "missing 'forward here'", NULL);
+	  } else {
+	       error(0, 0, "warning: '%-10s CON  0' inserted at %d:",
+		     s->name, location_counter);
+	       memory[location_counter] = 0;
+	       s->value = location_counter++;
+	       s->type = DEF;
+	  }
+     }
+     return 0;
+}
+
+@
+@c
+static int
+sym_resolve(Symbol *s)
+{
+     /* Now that the literal pool has been dumped we can
+	evaluate the location of the END statement */          
+     if (s->type == END) 
+	  s->value = location_counter; 
+     
+     /* Now we can handle any forward references */
+     resolve_forward(s);
+     return 0;
+}
+
+@ dump literals and fix forward refs and undefined symbols
+@c
+void
+symbols()
+{
+     iterate(sym_eval_wexpr);
+     iterate(sym_resolve);
+}
+
+@
+@c
+char loader[] =
+" O O6 Z O6    I C O4 0 EH A  F F CF 0  E   EU 0 IH G BB   EJ  CA. Z EU   EH E BA\n"
+"   EU 2A-H S BB  C U 1AEH 2AEN V  E  CLU  ABG Z EH E BB J B. A  9               \n";
+
+@
+@c
+void
+end_routine(int start)
+{
+     long address, loc, sign, value;
+     int i, j, flag; 
+     char field[7][11];
+     char title[6];
+     FILE *fp;
+
+     if (outfile) {
+	  fp = fopen(outfile, "w");
+	  if (!fp)
+	       error (1, errno, "cannot open output file `%s'", outfile);
+     } else
+	  fp = stdout;
+     
+     if (source_file) {
+	  char *p;
+	  if (p = strrchr(source_file, '/'))
+	       p++;
+	  else
+	       p = source_file;
+	  for (i = 0; i < 5 && p[i]; i++) 
+	       title[i] = toupper(p[i]);
+	  title[i] = '\0';
+     } else
+	  strcpy(title, "MIXAL");
+     
+     if (writeraw) {
+	  int count = 0;
+	  for (i = 0; i < 32; i++) {
+	       fprintf(fp,
+		       "%c%c%c%c%c",
+		       mixalf[ ((memory[i] & (B5 - 1))>>4*BYTESIZE) & (B1-1) ],
+		       mixalf[ ((memory[i] & (B5 - 1))>>3*BYTESIZE) & (B1-1) ],
+		       mixalf[ ((memory[i] & (B3 - 1))>>2*BYTESIZE) & (B1-1) ],
+		       mixalf[ ((memory[i] & (B2 - 1))>>  BYTESIZE) & (B1-1) ],
+		       mixalf[ (memory[i] & (B1 - 1)) ]);
+	       count++;
+	       if (count % 16 == 0)
+		    fprintf(fp, "\n");
+	  }
+	  return;
+     }
+     
+     /* The loading routine */
+     fprintf(fp, "%s", loader);
+
+     flag = i = 0;
+     for (address = 0; address < MEMSIZE; address++) 
+	  if (memory[address]) {
+	       sign = memory[address] & MINUS ? -1 : 1;
+	       value = MAG(memory[address]);
+	       if (!flag)
+		    flag=1, loc=address;
+	       if (address != loc + i || i >= 7) {
+		    fprintf(fp, "%-5s%1d%04ld", title, i, loc);
+		    for (j = 0; j < i; j++)
+			 fprintf(fp, "%10s", field[j]);
+		    fprintf(fp, "\n");
+		    loc = address;
+		    i = 0;
+	       } 
+	       sprintf(field[i], "%010ld", value);
+	       if (sign < 0)
+		    field[i][9] = "~JKLMNOPQR"[field[i][9]-'0'];
+	       i++;
+	  }
+     fprintf(fp, "%-5s%1d%04ld", title, i, loc);
+     for (j = 0; j < i; j++)
+	  fprintf(fp, "%10s", field[j]);
+     fprintf(fp, "\n");
+     fprintf(fp, "TRANS0%04d\n", start);
+
+     fclose(fp);
+}
+
+@
+@c
+int
+num(char *text) 
+{
+     int i, n;
+     char *p;  
+
+     n = 0;
+     for (i = 0; i < 5; i++) 
+	  if (!text[i])
+	       n = n*B1;
+	  else if (p = strchr(mixalf,text[i]))
+	       n = n*B1 + (p - mixalf);
+	  else
+	       yyerror("bad character in ALF constant");
+     return n;
+}
+
+@
+@c
+void
+resolve_forward(Symbol *f)
+{
+     ref *p;
+
+     for (p = f->reflist; p; p = p->next) {
+	  memory[p->address] &= (B3 - 1);
+	  memory[p->address] |= f->value<<(BYTESIZE*3);
+     }
+}

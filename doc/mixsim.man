@@ -1,0 +1,11 @@
+.\" MIXSIM man page
+.so manpage.inc
+.TH mixsim 1 "\*(DA" "MIX tools"
+.SH NAME
+mixsim - A MIXAL simulator and debugger
+.SH SYNOPSIS
+\fBmixal\fR [\fBOPTIONS\fR] [deck-file]
+.SH DESCRIPTION
+.De mixsim
+.SH AUTHORS
+\*(AU

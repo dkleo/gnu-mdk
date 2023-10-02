@@ -1,0 +1,368 @@
+\input cwebmac
+% This file is part of MIX
+% Copyright (C) 1998, 1999, 2000 Douglas Laing
+% Copyright (C) 2000, 2005, 2007 Sergey Poznyakoff
+%
+% This program is free software; you can redistribute it and/or
+% modify it under the terms of the GNU General Public License as
+% published by the Free Software Foundation; either version 3, or (at
+% your option) any later version.
+%
+% This program is distributed in the hope that it will be useful, but
+% WITHOUT ANY WARRANTY; without even the implied warranty of
+% MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+% General Public License for more details.
+%
+% You should have received a copy of the GNU General Public License
+% along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+% Redefine \vb. I don't want each syntax rule be enclosed in box.
+\def\vb#1{\.{#1}}
+
+
+\M{1}Declarations for AT\&T lex.
+\Y\B$\MOD$ \|a\,\T{4000}\6
+${}\MOD\|e\,{}$\T{4000}\6
+${}\MOD\|p\,{}$\T{4000}\par
+\fi
+
+\N{2}{2}C prologue.
+\Y\B$\MOD$ $\{{}$\6
+\8\#\&{ifdef} \.{HAVE\_CONFIG\_H}\6
+\8\#\&{include} \.{<config.h>}\6
+\8\#\&{endif}\6
+\8\#\&{include} \.{<mixasm.h>}\6
+\8\#\&{include} \.{<mixal.h>}\6
+\8\#\&{include} \.{<string.h>}\6
+\8\#\&{include} \.{<ctype.h>}\par
+\fi
+
+\M{3}\PB{\\{label}} keeps the current label identifier.
+\Y\B\&{char} \\{label}[\T{11}]${}\K\.{"\ "}{}$;\par
+\fi
+
+\M{4}Copy \PB{\\{size}} characters from \PB{\\{ptr}} into \PB{$\\{yylval}.%
+\\{literal}$}. The
+remaining space between \PB{$\\{yylval}.\\{literal}[\\{size}]$} and
+\PB{$\\{yylval}.\\{literal}{}$[\&{sizeof} ${}(\\{yylval}.\\{literal})-\T{1}]$}
+is filled with space
+characters.
+
+\Y\B\&{static} \&{char} ${}{*}{}$\\{copy\_alf}(\&{char} ${}{*}\\{ptr},\39{}$%
+\&{int} \\{size})\1\1\2\2\6
+${}\{{}$\1\6
+\&{int} \|i;\7
+\&{for} ${}(\|i\K\T{0};{}$ ${}\|i<\\{size};{}$ ${}\|i\PP){}$\1\5
+${}\\{yylval}.\\{literal}[\|i]\K\\{ptr}[\|i];{}$\2\6
+\&{for} ( ; ${}\|i<{}$\&{sizeof} ${}(\\{yylval}.\\{literal})-\T{1};{}$ ${}\|i%
+\PP){}$\1\5
+${}\\{yylval}.\\{literal}[\|i]\K\.{'\ '};{}$\2\6
+${}\\{yylval}.\\{literal}[\|i]\K\T{0};{}$\6
+\&{return} \\{yylval}${}.\\{literal};{}$\6
+\4${}\}{}$\2\par
+\fi
+
+\M{5}Each line of \.{MIXAL} code can reference one of at most 18 possible
+local labels. Among these, the back-referenced labels (\PB{\T{9}\|B} through
+\PB{\T{1}\|B})  must already exist. The forward-referenced labels (\PB{\T{1%
+\$F}} through
+\PB{\T{9\$F}}) will spring into existence later, when their \PB{\|H} equivalent
+appears in the text.
+
+Each local label (\PB{\T{1}\|H} through \PB{\T{9}\|H}) is assigned a unique
+sequence
+number that identifies it among a set of labels with the same
+name. These sequence numbers are kept in array \PB{\\{local\_num}}. The array
+is indexed by the number of local label (e.g. \PB{\T{1}} for \PB{\T{1}\|H}), so
+its
+\PB{\T{0}}th slot is not used. A local label is assigned a ``global name''
+that is used to keep it in \.{mixal} symbol table. Such global name is
+constructed concatenating label local number, a dash and label
+sequence number, surrounded by vertical bars (a  vertical bar is not
+present in \.{MIX} character set, so it is useful to discern local
+labels from valid \.{MIX} identifiers).
+
+The sequence for local label \PB{\|n} is incremented each time a symbol
+\PB{\\{nH}} is declared. So, to reference \PB{\\{nB}} \PB{\\{local\_num}[\|n]}
+is used. To
+reference \PB{\\{nF}} label, \PB{\\{local\_num}[\|n]\hbox{$+1$}} is used.
+
+\Y\B\&{int} \\{local\_num}[\T{10}]${}\K\{\T{1},\39\T{1},\39\T{1},\39\T{1},\39%
+\T{1},\39\T{1},\39\T{1},\39\T{1},\39\T{1},\39\T{1}\}{}$;\par
+\fi
+
+\M{6}Create a global name for local variable \PB{\|n}. \PB{\\{Bias}} is added
+to
+sequence number before creating the name.
+\fi
+
+\M{7}
+\Y\B\&{static} \&{char} ${}{*}{}$\\{localname}(\&{int} \|n${},\39{}$\&{int} %
+\\{bias})\1\1\2\2\6
+${}\{{}$\1\6
+\&{static} \&{char} \\{name}[\T{64}];\7
+${}\\{sprintf}(\\{name},\39\.{"|\%d-\%d|"},\39\|n,\39\\{local\_num}[\|n]+%
+\\{bias});{}$\6
+\&{return} \\{name};\6
+\4${}\}{}$\2\par
+\fi
+
+\M{8}
+\Y\B$\MOD$ $\}{}$\par
+\fi
+
+\M{9}Lex variables
+\Y\B\vb{symbol\ [A-Z0-9]*[A-Z][A-Z0-9]*}\6
+\vb{pseudo\ EQU|ORIG|CON|END}\6
+\vb{number\ [0-9]+}\6
+\vb{asterisk\ \\*}\6
+\vb{slashes\ \\/\\/}\par
+\fi
+
+\M{10}Declare states
+\Y\B$\MOD$ \|s\,\.{COMMENT}\6
+${}\MOD\|s\,{}$\.{OP}\6
+${}\MOD\|s\,{}$\.{ADDRESS}\par
+\fi
+
+\N{2}{11}LEX RULES.
+
+\fi
+
+\M{12}
+\Y\B\vb{\%\%}\par
+\fi
+
+\M{13}
+\Y\B\vb{\^\{symbol\}\ \{} \6
+\&{if} ${}(\\{strlen}(\\{yytext})>\T{10}){}$\5
+${}\{{}$\1\6
+\\{yyerror}(\.{"Symbol\ longer\ than\ }\)\.{10\ characters"});\6
+${}\\{yytext}[\T{10}]\K\.{'\\0'};{}$\6
+\4${}\}{}$\2\6
+\&{if} ${}(\\{localref}(\\{yytext},\39\.{"H"})){}$\5
+${}\{{}$\1\6
+\&{char} ${}{*}\\{name}\K\\{localname}(\\{yytext}[\T{0}]-\.{'0'},\39\T{0});{}$\7
+${}\\{local\_num}[\\{yytext}[\T{0}]-\.{'0'}]\PP;{}$\6
+\&{if} ${}(\R(\\{yylval}.\\{symp}\K\\{lookup}(\\{name}))){}$\5
+${}\{{}$\1\6
+${}\\{yylval}.\\{symp}\K\\{install}(\\{name},\39\T{0},\39\T{0});{}$\6
+${}\\{yylval}.\\{symp}\MG\\{type}\K\.{DEF};{}$\6
+\4${}\}{}$\2\6
+\4${}\}{}$\2\6
+\&{else} \&{if} ${}((\\{yylval}.\\{symp}\K\\{lookup}(\\{yytext}))){}$\5
+${}\{{}$\1\6
+\&{if} ${}(\\{yylval}.\\{symp}\MG\\{type}\I\.{UNDEF}){}$\1\5
+${}\\{parse\_error}(\.{"duplicate\ symbol:\ \%}\)\.{s"},\39\\{yytext});{}$\2\6
+\4${}\}{}$\2\6
+\&{else}\5
+${}\{{}$\1\6
+${}\\{yylval}.\\{symp}\K\\{install}(\\{yytext},\39\T{0},\39\T{0});{}$\6
+${}\\{yylval}.\\{symp}\MG\\{type}\K\.{UNDEF};{}$\6
+\4${}\}{}$\2\6
+${}\\{strcpy}(\\{label},\39\\{yytext});{}$\6
+\&{return} \.{LOC}; $\}{}$\par
+\fi
+
+\M{14}
+\Y\B\vb{\^\\*\ \ \ \ \ \ \ \{}\.{BEGIN}(\.{COMMENT});\6
+\\{tlist}(\.{"*"});\6
+\&{return} \.{ASTERISK}; $\}{}$\par
+\fi
+
+\M{15}
+\Y\B$\vb{<COMMENT>[\^\\n]*\ \{}\\{yylval}.\\{txt}\K\\{yytext};{}$\6
+${}\\{tlist}(\.{"\%s"},\39\\{yytext});{}$\6
+\&{return} \.{TEXT}; $\}{}$\par
+\fi
+
+\M{16}
+\Y\B\vb{<COMMENT>\\n\ \{}\.{BEGIN}(\.{INITIAL});\6
+\\{tlist}(\.{"\\n"});\6
+\&{return} \\{yytext}[\T{0}]; $\}{}$\par
+\fi
+
+\M{17}
+\Y\B$\vb{<INITIAL>[\ \\t]+\ \{}\\{tlist}(\.{"\%-10s\ "},\39\\{label});{}$\6
+${}\\{strcpy}(\\{label},\39\.{"\ "});{}$\6
+\.{BEGIN}(\.{OP}); $\}{}$\par
+\fi
+
+\M{18}
+\Y\B$\vb{<OP>\{pseudo\}\ \{}\\{strcpy}(\\{yylval}.\\{literal},\39%
+\\{yytext});{}$\6
+${}\\{tlist}(\.{"\%-4s\ "},\39\\{yytext});{}$\6
+\&{return} \.{PSEUDO}; $\}{}$\par
+\fi
+
+\M{19}
+\Y\B$\vb{<OP>\{symbol\}\ \{}\\{yylval}.\\{opcode}\K\\{lookup\_op}(%
+\\{yytext});{}$\6
+\&{if} ${}(\R\\{yylval}.\\{opcode}){}$\5
+${}\{{}$\1\6
+\\{yyerror}(\.{"Invalid\ op\ code"});\6
+\&{return} \.{BOGUS};\6
+\4${}\}{}$\2\6
+${}\\{tlist}(\.{"\%-4s\ "},\39\\{yytext});{}$\6
+\&{return} \.{OPCODE}; $\}{}$\par
+\fi
+
+\M{20}
+\Y\B\vb{<OP>ALF[\ ][\^\\n]+/\\n\ \{}\1\1\6
+\&{int} \|i${}\K(\\{yytext}[\T{4}]\E\.{'\ '})\?\T{5}:\T{4};{}$\6
+\&{int} \\{length}${}\K\\{yyleng}-\|i;{}$\6
+\&{char} ${}{*}\|s;\2\2{}$\6
+\&{if} ${}(\\{length}>\T{5}){}$\5
+${}\{{}$\1\6
+\&{if} (\\{isspace}(\\{yytext}[\|i]))\1\5
+${}\\{warning}(\.{"Literal\ sequence\ to}\)\.{o\ long\ (Too\ many\ spa}\)\.{ces%
+\ after\ ALF?)"},\39\NULL);{}$\2\6
+\&{else}\1\5
+${}\\{warning}(\.{"Literal\ sequence\ to}\)\.{o\ long"},\39\NULL);{}$\2\6
+${}\\{length}\K\T{5};{}$\6
+\4${}\}{}$\2\7
+${}\|s\K\\{copy\_alf}(\\{yytext}+\|i,\39\\{length});{}$\6
+${}\\{tlist}(\.{"ALF\ \ \%s"},\39\|s);{}$\6
+\.{BEGIN}(\.{COMMENT});\6
+\&{return} \.{ALF}; $\}{}$\par
+\fi
+
+\M{21}
+\Y\B\vb{<OP>[\ \\t]+\ \{}\.{BEGIN}(\.{ADDRESS}); $\}{}$\par
+\fi
+
+\M{22}
+\Y\B\vb{<OP>[\^\ \\t\\n]+\ \{}\\{yyerror}(\.{"Invalid\ op\ code"}); $\}{}$\par
+\fi
+
+\M{23}
+\Y\B\vb{<ADDRESS>\{symbol\}\ \{} \6
+\&{if} ${}(\\{strlen}(\\{yytext})>\T{10}){}$\5
+${}\{{}$\1\6
+\\{yyerror}(\.{"Symbol\ longer\ than\ }\)\.{10\ characters"});\6
+${}\\{yytext}[\T{10}]\K\.{'\\0'};{}$\6
+\4${}\}{}$\2\6
+${}\\{tlist}(\.{"\%s"},\39\\{yytext});{}$\6
+\&{if} ${}(\\{localref}(\\{yytext},\39\.{"B"})){}$\5
+${}\{{}$\1\6
+\&{char} ${}{*}\\{name}\K\\{localname}(\\{yytext}[\T{0}]-\.{'0'},\39{-}%
+\T{1});{}$\7
+\&{if} ${}(\R(\\{yylval}.\\{symp}\K\\{lookup}(\\{name}))){}$\5
+${}\{{}$\1\6
+\\{yyerror}(\.{"missing\ backward\ 'h}\)\.{ere'"});\C{ Make sure we return
+something useful }\6
+${}\\{yylval}.\\{symp}\K\\{install}(\\{name},\39\T{0},\39\T{0});{}$\6
+${}\\{yylval}.\\{symp}\MG\\{type}\K\.{UNDEF};{}$\6
+${}\\{local\_num}[\\{yytext}[\T{0}]-\.{'0'}]\PP{}$;\C{ Mark the symbol defined
+}\6
+\4${}\}{}$\2\6
+\&{return} \.{LOCAL\_SYMBOL};\6
+\4${}\}{}$\2\6
+\&{else} \&{if} ${}(\\{localref}(\\{yytext},\39\.{"F"})){}$\5
+${}\{{}$\1\6
+\&{char} ${}{*}\\{name}\K\\{localname}(\\{yytext}[\T{0}]-\.{'0'},\39\T{0});{}$\7
+\&{if} ${}(\R(\\{yylval}.\\{symp}\K\\{lookup}(\\{name}))){}$\5
+${}\{{}$\1\6
+${}\\{yylval}.\\{symp}\K\\{install}(\\{name},\39\T{0},\39\T{0});{}$\6
+${}\\{yylval}.\\{symp}\MG\\{type}\K\.{UNDEF};{}$\6
+\4${}\}{}$\2\6
+\&{return} \.{FUTURE\_REFERENCE};\6
+\4${}\}{}$\2\6
+\&{else} \&{if} ${}(\R(\\{yylval}.\\{symp}\K\\{lookup}(\\{yytext}))){}$\5
+${}\{{}$\1\6
+${}\\{yylval}.\\{symp}\K\\{install}(\\{yytext},\39\T{0},\39\T{0});{}$\6
+${}\\{yylval}.\\{symp}\MG\\{type}\K\.{UNDEF};{}$\6
+\&{return} \.{FUTURE\_REFERENCE};\6
+\4${}\}{}$\2\6
+\&{else} \&{if} ${}(\\{yylval}.\\{symp}\MG\\{type}\E\.{UNDEF}){}$\1\5
+\&{return} \.{FUTURE\_REFERENCE};\2\6
+\&{else}\1\5
+\&{return} \.{DEFINED\_SYMBOL};\2\6
+$\}{}$\par
+\fi
+
+\M{24}
+\Y\B\vb{<ADDRESS>\{number\}\ \ \ \{} \6
+\&{if} ${}(\\{strlen}(\\{yytext})>\T{10}){}$\5
+${}\{{}$\1\6
+\\{yyerror}(\.{"Number\ greater\ than}\)\.{\ 10\ digits"});\6
+${}\\{yytext}[\T{10}]\K\.{'\\0'};{}$\6
+\4${}\}{}$\2\6
+${}\\{tlist}(\.{"\%s"},\39\\{yytext});{}$\6
+${}\\{yylval}.\\{val}\K\\{atoi}(\\{yytext});{}$\6
+\&{if} ${}(\\{yylval}.\\{val}>\T{1073741823}){}$\1\5
+\\{yyerror}(\.{"Number\ greater\ than}\)\.{\ 1073741823"});\2\6
+\&{return} \.{NUMBER}; $\}{}$\par
+\fi
+
+\M{25}
+\Y\B\vb{<ADDRESS>\{asterisk\}\ \{}\\{tlist}(\.{"*"});\6
+\&{return} \.{ASTERISK}; $\}{}$\par
+\fi
+
+\M{26}
+\Y\B\vb{<ADDRESS>\{slashes\}\ \ \{}\\{tlist}(\.{"//"});\6
+\&{return} \.{SLASHES}; $\}{}$\par
+\fi
+
+\M{27}
+\Y\B$\vb{<ADDRESS>[\^\ \\t\\n]\ \{}\\{tlist}(\.{"\%c"},\39{*}\\{yytext});{}$\6
+\&{return} \\{yytext}[\T{0}]; $\}{}$\par
+\fi
+
+\M{28}
+\Y\B$\vb{<ADDRESS>[\ \\t]*\ \ \{}\\{tlist}(\.{"\%s"},\39\\{yytext});{}$\6
+\.{BEGIN}(\.{COMMENT}); $\}{}$\par
+\fi
+
+\M{29}
+\Y\B\vb{<ADDRESS>[\\n]\ \{}\.{BEGIN}(\.{INITIAL});\6
+\\{tlist}(\.{"\\n"});\6
+\&{return} \\{yytext}[\T{0}]; $\}{}$\par
+\fi
+
+\M{30}
+\Y\B\vb{[\ \\t\\n]\ \ \ \ \ \ \ \{}\.{BEGIN}(\.{INITIAL});\6
+${}\\{tlist}(\.{"\%c"},\39\\{yytext}[\T{0}]);{}$\6
+\&{return} \\{yytext}[\T{0}]; $\}{}$\par
+\fi
+
+\M{31}
+\Y\B$\vb{.	\ \ \ \ \ \ \ \ \{}\\{parse\_error}(\.{"invalid\ input:"},\39%
+\\{yytext});$ $\}{}$\par
+\fi
+
+\M{32}
+\Y\B\vb{\%\%}\par
+\fi
+
+\N{2}{33}C trailer.
+
+\Y\B\&{int} \\{yywrap}(\,)\1\1\2\2\6
+${}\{{}$\1\6
+\&{return} \T{1};\6
+\4${}\}{}$\2\par
+\fi
+
+\M{34}
+\Y\B\&{void} \\{init\_lex}(\&{FILE} ${}{*}\\{fp},\39{}$\&{int} \\{debug})\1\1\2%
+\2\6
+${}\{{}$\6
+\8\#\&{ifdef} \.{FLEX\_DEBUG}\1\6
+${}\\{yy\_flex\_debug}\K\\{debug};{}$\6
+\8\#\&{endif}\6
+${}\\{yyin}\K\\{fp};{}$\6
+\4${}\}{}$\2\par
+\fi
+
+\M{35}
+\Y\B\&{void} \\{reset\_lex}(\,)\1\1\2\2\6
+${}\{{}$\1\6
+\.{BEGIN}(\.{INITIAL});\6
+\4${}\}{}$\2\par
+\fi
+
+
+\inx
+\fin
+\con

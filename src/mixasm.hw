@@ -1,0 +1,67 @@
+% This file is part of mix
+% Copyright (C) 2005, 2007 Sergey Poznyakoff
+%
+% This program is free software; you can redistribute it and/or modify
+% it under the terms of the GNU General Public License as published by
+% the Free Software Foundation; either version 3 of the License, or
+% (at your option) any later version.
+%
+% This program is distributed in the hope that it will be useful,
+% but WITHOUT ANY WARRANTY; without even the implied warranty of
+% MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+% GNU General Public License for more details.
+%
+% You should have received a copy of the GNU General Public License
+% along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+@* Definitions for \.{MIXAL} symbol tables.
+
+@ |localref| returns |true| if |name| is a local label of type |c|. |c| is a
+string containing any of the following characters: \.{F}, \.{H}, \.{B}.
+@d localref(name,c) (name[2] == 0
+                     && name[0] >= '0' && name[0] <= '9'
+                     && strchr(c, name[1]))
+
+@s line c
+
+@ A symbol table entry.
+@c
+typedef  struct  Symbol  {    
+     char    *name;           /* symbol name */
+     int      type;           /* symbol type */
+     int      value;          /* symbol value */
+     int      line;           /* source line where it was defined */
+     struct ref *reflist;     /* list of forward references to this symbol */ 
+     struct ref *xref;        /* list of references to this symbol (used for
+				 creating cross-reference index) */
+} Symbol;
+
+@ Forward reference. The same structure is also used for cross-references.
+@c
+typedef struct  ref       {  
+     struct   ref    *next;  /* pointer to the next reference */
+     int      address;       /* address from where the symbol is referenced */
+     int      line;          /* source line number */
+} ref;
+
+@ External declarations.
+@c 
+Symbol *install(char *s, int v, int l),  *lookup(char *s);
+ref *addref(ref *p, int loc, int line);
+Symbol **sort_symbols(void);
+void sort_refs(Symbol *s);
+struct mix_op *lookup_op(char *c);
+void install_op(struct mix_op *op);
+unsigned iterate(int (*fun)(Symbol *));
+
+int yylex(void);
+int yyerror(char *s);
+void warning_l(int line, char *s, char *t);
+void warning(char *s, char *t);
+void parse_error_l(int line, char *s, char *t);
+void parse_error(char *s, char *t);
+void init_lex(FILE *fp, int debug);
+void reset_lex(void);
+     
+void tlist(char *fmt, ...);
+

@@ -1,0 +1,35 @@
+@macro MIX
+@acronym{MIX}
+@end macro
+
+@macro MIXAL
+@acronym{MIXAL}
+@end macro
+
+@macro ifield
+@acronym{I}-field
+@end macro
+
+@macro ffield
+@acronym{F}-field
+@end macro
+
+@macro TAOCP{section, page, title}
+@cite{@acronym{TAOCP}, \section\, p.\page\, \title\}
+@end macro
+
+@macro xopindex{option,text}
+@opindex \option\, --\option\ @r{option, \text\}
+@end macro
+
+@macro sopindex{option,text}
+@opindex \option\, -\option\ @r{short option, \text\}
+@end macro
+
+@macro opsummary{option}
+@ifclear ANCHOR--\option\
+@set ANCHOR--\option\ 1
+@anchor{--\option\}
+@end ifclear
+@xopindex{\option\, summary}
+@end macro

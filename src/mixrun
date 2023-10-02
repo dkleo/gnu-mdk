@@ -1,0 +1,112 @@
+#! /bin/sh
+# Copyright (C) 2005, 2007 Sergey Poznyakoff
+#
+# This program is free software; you can redistribute it and/or
+# modify it under the terms of the GNU General Public License as
+# published by the Free Software Foundation; either version 3, or (at
+# your option) any later version.
+#
+# This program is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+LISTING=
+LISTFILE=
+DUMP=
+
+usage() {
+	cat <<-EOF
+	$0: assemble and execute MIXAL file.
+	usage: $0 [OPTIONS] FILE
+
+	OPTIONS are:
+
+	  -l[FILE], --list[=FILE] Create listing file
+	  -d FILE, --dump=FILE    After executing the program, dump machine state to
+	                          FILE
+	  --no-dump               Do not dump machine state
+	  -V, --version           Display program version
+	  -h, --help              Display this usage summary
+
+EOF
+	# Display bug reporting address:
+	mixsim --help | tail -n 1
+}
+
+evalvar=
+
+while [ $# -ne 0 ]
+do
+	if [ -n "$evalvar" ]; then
+		eval $evalvar=$1
+		shift
+		evalvar=
+		continue
+	fi
+	
+	case $1 in
+	-l[a-zA-Z_.0-9-]*)
+		LISTING=1
+		LISTFILE=`echo "$1" | sed 's/^-l//'`
+		shift;;	
+	--l=*|--li=*|--lis=*|--list=*)
+		LISTING=1
+		LISTFILE=`echo "$1" | sed 's/^--l[^=]*=//'`
+		shift;;
+	-l|--l|--li|--lis|--list)
+		LISTING=1
+		shift;;
+	--d=*|--du=*|--dum=*|--dump=*)
+		DUMP=`echo "$1" | sed 's/^--d[^=]*=//'`
+		shift;;
+	-d[a-zA-Z_.0-9-]*)
+		DUMP=`echo "$1" | sed 's/^-d//'`
+		shift;;	
+	-d|--d|--du|--dum|--dump)
+		evalvar=DUMP
+		shift;;
+	--n|--no-|--no-d|--no-du|--no-dum|--no-dump)
+		DUMP=/dev/null
+		shift;;
+	-h|--h|--he|--hel|--help)
+		usage	
+		exit 0;;
+	-V|--v|--ve|--ver|--vers|--versi|--versio|--version)
+		mixsim --version | sed "s|mixsim|$0|g"
+		exit 0;;
+	--)	shift; break;;	
+	-*)	echo "Invalid option $1. Try $0 -h for more information." >&2
+	        exit 1;;
+	*)	break;
+	esac
+done
+
+if [ -n "$DUMP" ]; then
+  DUMP="2>$DUMP"
+fi
+
+case $# in
+0) echo "Not enough arguments. Try $0 -h for more information.">&2
+   exit 1;;
+1) ;;
+*) echo "Too many arguments. Try $0 -h for more information.">&2
+   exit 1;;
+esac      
+
+if [ -n "$LISTING" ]; then
+	LST=mixlst.$$
+	SYM=mixsym.$$
+	if [ -z "$LISTFILE" ]; then
+		LISTFILE=`echo $1 | sed 's|.*/||;s|\(.*\)\..*|\1|'`.lst
+	fi
+	trap "rm -f $LST $SYM" 1 2 13 15
+	eval "mixal --list --xref --list-file=$LST $1 2>$SYM | mixsim $DUMP"
+	cat $SYM $LST > $LISTFILE
+	rm -f $LST $SYM
+else
+	eval "mixal $1 | mixsim $DUMP"
+fi

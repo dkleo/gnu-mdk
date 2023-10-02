@@ -1,0 +1,14 @@
+\I\X21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35:Basic input
+functions\X
+\U18.
+\I\X5:Initialize locus variables\X
+\U43.
+\I\X7:Open input file\X
+\U43.
+\I\X8:Open output file\X
+\U43.
+\I\X36, 37, 38, 40, 41, 42:Process functions\X
+\U18.
+\I\X12:Set progname\X
+\U43.
+

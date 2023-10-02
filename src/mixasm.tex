@@ -1,0 +1,78 @@
+\input cwebmac
+% This file is part of mix
+% Copyright (C) 2005, 2007 Sergey Poznyakoff
+%
+% This program is free software; you can redistribute it and/or modify
+% it under the terms of the GNU General Public License as published by
+% the Free Software Foundation; either version 3 of the License, or
+% (at your option) any later version.
+%
+% This program is distributed in the hope that it will be useful,
+% but WITHOUT ANY WARRANTY; without even the implied warranty of
+% MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+% GNU General Public License for more details.
+%
+% You should have received a copy of the GNU General Public License
+% along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+
+\N{1}{1}Definitions for \.{MIXAL} symbol tables.
+
+\fi
+
+\M{2}\PB{\\{localref}} returns \PB{\\{true}} if \PB{\\{name}} is a local label
+of type \PB{\|c}. \PB{\|c} is a
+string containing any of the following characters: \.{F}, \.{H}, \.{B}.
+\Y\B\4\D$\\{localref}(\\{name},\|c)$ \5
+$(\\{name}[\T{2}]\E\T{0}\W\\{name}[\T{0}]\G\.{'0'}\W\\{name}[\T{0}]\Z\.{'9'}\W%
+\\{strchr}(\|c,\39\\{name}[\T{1}]){}$)\par
+\fi
+
+\M{3}A symbol table entry.
+\Y\B\&{typedef} \&{struct} \&{Symbol} ${}\{{}$\1\6
+\&{char} ${}{*}\\{name}{}$;\C{ symbol name }\6
+\&{int} \\{type};\C{ symbol type }\6
+\&{int} \\{value};\C{ symbol value }\6
+\&{int} \\{line};\C{ source line where it was defined }\6
+\&{struct} \\{ref} ${}{*}\\{reflist}{}$;\C{ list of forward references to this
+symbol }\6
+\&{struct} \\{ref} ${}{*}\\{xref}{}$;\C{ list of references to this symbol
+(used for 				 creating cross-reference index) }\2\6
+${}\}{}$ \&{Symbol};\par
+\fi
+
+\M{4}Forward reference. The same structure is also used for cross-references.
+\Y\B\&{typedef} \&{struct} \&{ref} ${}\{{}$\1\6
+\&{struct} \&{ref} ${}{*}\\{next}{}$;\C{ pointer to the next reference }\6
+\&{int} \\{address};\C{ address from where the symbol is referenced }\6
+\&{int} \\{line};\C{ source line number }\2\6
+${}\}{}$ \&{ref};\par
+\fi
+
+\M{5}External declarations.
+\Y\B\&{Symbol} ${}{*}{}$\\{install}(\&{char} ${}{*}\|s,\39{}$\&{int} \|v${},%
+\39{}$\&{int} \|l)${},{}$ ${}{*}{}$\\{lookup}(\&{char} ${}{*}\|s);{}$\6
+\&{ref} ${}{*}{}$\\{addref}(\&{ref} ${}{*}\|p,\39{}$\&{int} \\{loc}${},\39{}$%
+\&{int} \\{line});\6
+\&{Symbol} ${}{*}{*}\\{sort\_symbols}(\&{void});{}$\6
+\&{void} \\{sort\_refs}(\&{Symbol} ${}{*}\|s);{}$\6
+\&{struct} \\{mix\_op} ${}{*}{}$\\{lookup\_op}(\&{char} ${}{*}\|c);{}$\6
+\&{void} \\{install\_op}(\&{struct} \\{mix\_op} ${}{*}\\{op});{}$\6
+\&{unsigned} ${}\\{iterate}(\&{int}({*}\\{fun}){}$(\&{Symbol} ${}{*}));{}$\6
+\&{int} \\{yylex}(\&{void});\6
+\&{int} \\{yyerror}(\&{char} ${}{*}\|s);{}$\6
+\&{void} \\{warning\_l}(\&{int} \\{line}${},\39{}$\&{char} ${}{*}\|s,\39{}$%
+\&{char} ${}{*}\|t);{}$\6
+\&{void} \\{warning}(\&{char} ${}{*}\|s,\39{}$\&{char} ${}{*}\|t);{}$\6
+\&{void} \\{parse\_error\_l}(\&{int} \\{line}${},\39{}$\&{char} ${}{*}\|s,%
+\39{}$\&{char} ${}{*}\|t);{}$\6
+\&{void} \\{parse\_error}(\&{char} ${}{*}\|s,\39{}$\&{char} ${}{*}\|t);{}$\6
+\&{void} \\{init\_lex}(\&{FILE} ${}{*}\\{fp},\39{}$\&{int} \\{debug});\6
+\&{void} \\{reset\_lex}(\&{void});\6
+\&{void} \\{tlist}(\&{char} ${}{*}\\{fmt},\39\,\ldots\,){}$;\par
+\fi
+
+
+\inx
+\fin
+\con

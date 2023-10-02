@@ -1,0 +1,168 @@
+# This file defines MIXAL instruction set
+#
+# Copyright (C) 2000, 2005, 2007 Sergey Poznyakoff
+#
+# This program is free software; you can redistribute it and/or
+# modify it under the terms of the GNU General Public License as
+# published by the Free Software Foundation; either version 3, or (at
+# your option) any later version.
+#
+# This program is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+#
+# Columns are:
+#  C    Opcode
+#  AB   Command mnemonics
+#  DEF  Default field specification
+#  F    Not used
+#
+# C     AB     DEF F	
+0	NOP	0	*
+1	ADD	0:5
+2	SUB	0:5
+3	MUL	0:5
+4	DIV	0:5
+5	NUM	0
+5	CHAR	1
+5	HLT	2
+6	SLA	0
+6	SRA	1
+6	SLAX	2
+6	SRAX	3
+6	SLC	4
+6	SRC	5
+7	MOVE	1	*
+8	LDA	0:5
+9	LD1	0:5
+10	LD2	0:5
+11	LD3	0:5
+12	LD4	0:5
+13	LD5	0:5
+14	LD6	0:5
+15	LDX	0:5
+16	LDAN	0:5
+17	LD1N	0:5
+18	LD2N	0:5
+19	LD3N	0:5
+20	LD4N	0:5
+21	LD5N	0:5
+22	LD6N	0:5
+23	LDXN	0:5
+24	STA	0:5
+25	ST1     0:5
+26	ST2     0:5
+27	ST3     0:5
+28	ST4     0:5
+29	ST5     0:5
+30	ST6     0:5
+31	STX     0:5
+32	STJ	0:2
+33	STZ	0:5
+34	JBUS	0	*
+35	IOC	0	*
+36	IN	0	*
+37	OUT	0	*
+38	JRED	0	*
+39	JMP	0
+39	JSJ	1
+39	JOV	2
+39	JNOV	3
+39	JL	4
+39	JE	5
+39	JG	6
+39	JGE	7
+39	JNE	8
+39	JLE	9
+40	JAN	0
+40	JAZ	1
+40	JAP	2
+40	JANN	3
+40	JANZ	4
+40	JANP	5
+41	J1N	0
+41	J1Z	1
+41	J1P	2
+41	J1NN	3
+41	J1NZ	4
+41	J1NP	5
+42	J2N	0
+42	J2Z	1
+42	J2P	2
+42	J2NN	3
+42	J2NZ	4
+42	J2NP	5
+43	J3N	0
+43	J3Z	1
+43	J3P	2
+43	J3NN	3
+43	J3NZ	4
+43	J3NP	5
+44	J4N	0
+44	J4Z	1
+44	J4P	2
+44	J4NN	3
+44	J4NZ	4
+44	J4NP	5
+45	J5N	0
+45	J5Z	1
+45	J5P	2
+45	J5NN	3
+45	J5NZ	4
+45	J5NP	5
+46	J6N	0
+46 	J6Z	1
+46	J6P	2
+46	J6NN	3
+46	J6NZ	4
+46	J6NP	5
+47	JXN	0
+47	JXZ	1
+47	JXP	2
+47	JXNN	3
+47	JXNZ	4
+47	JXNP	5
+48	INCA	0
+48	DECA	1
+48	ENTA	2
+48	ENNA	3
+49	INC1	0
+49	DEC1	1
+49	ENT1	2
+49	ENN1	3
+50	INC2	0
+50	DEC2	1
+50	ENT2	2
+50	ENN2	3
+51	INC3	0
+51	DEC3	1
+51	ENT3	2
+51	ENN3	3
+52	INC4	0
+52	DEC4	1
+52	ENT4	2
+52	ENN4	3
+53	INC5	0
+53	DEC5	1
+53	ENT5	2
+53	ENN5	3
+54	INC6	0
+54	DEC6	1
+54	ENT6	2
+54	ENN6	3
+55	INCX	0
+55	DECX	1
+55	ENTX	2
+55	ENNX	3
+56	CMPA	0:5
+57	CMP1	0:5
+58	CMP2	0:5
+59	CMP3	0:5
+60	CMP4	0:5
+61	CMP5	0:5
+62	CMP6	0:5
+63	CMPX	0:5

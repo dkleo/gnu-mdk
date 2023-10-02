@@ -1,0 +1,2356 @@
+\input cwebmac
+% This file is part of MIX
+% Copyright (C) 1998, 1999, 2000 Douglas Laing
+% Copyright (C) 2000, 2005, 2007 Sergey Poznyakoff
+%
+% This program is free software; you can redistribute it and/or
+% modify it under the terms of the GNU General Public License as
+% published by the Free Software Foundation; either version 3, or (at
+% your option) any later version.
+%
+% This program is distributed in the hope that it will be useful, but
+% WITHOUT ANY WARRANTY; without even the implied warranty of
+% MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+% General Public License for more details.
+%
+% You should have received a copy of the GNU General Public License
+% along with this program.  If not, see <http://www.gnu.org/licenses/>.
+%
+
+\def\>{\hskip 5em}
+
+
+\N{1}{1}A MIX SIMULATOR.
+This will simulate a binary  computer with 64 distinct
+values per byte.
+Each byte will be represented by 6 bits, with a value range of
+\PB{\T{\~00}} to \PB{\T{\~77}}.
+Signs will be a single bit, \PB{\T{0}} for plus or \PB{\T{1}} for minus in the
+first position
+of the real word.
+A word will then occupy 4 actual 8-bit hardware bytes of the real machine
+and leave one bit (the second bit of the real word) over for possible future
+use (garbage collection- - with new operations to set the bit on and off?)
+
+\fi
+
+\M{2}The overall structure will be
+\Y\B\X9:Header files to include\X\6
+\X10:Global variables\X\6
+\X44:I/O functions\X\6
+\X13:Auxiliary Functions\X\6
+\X62:Diagnostic functions\X\6
+\X73:Debugging support\X\6
+\X90:Disassembler support\X\6
+\X66:Interface functions\X\6
+\X19:MIX Instruction Handlers\X\6
+\X95:The main program\X\par
+\fi
+
+\M{3}Simulator-specific definitions
+\Y\B\4\D$\.{ADDRESS}(\\{word})$ \5
+$(\\{word}\AND\.{TWOBYTES}\LL\T{3}*\.{BYTESIZE})\GG\T{3}*{}$\.{BYTESIZE}\C{
+magnitude of address }\par
+\B\4\D$\.{INDEX}(\\{word})$ \5
+$(\\{word}\AND\.{ONEBYTE}\LL\T{2}*\.{BYTESIZE})\GG\T{2}*{}$\.{BYTESIZE}\C{
+index specification }\par
+\B\4\D$\.{FIELD}(\\{word})$ \5
+$(\\{word}\AND\.{ONEBYTE}\LL\.{BYTESIZE})\GG{}$\.{BYTESIZE}\C{ F-specification
+}\par
+\B\4\D$\.{CODE}(\\{word})$ \5
+$(\\{word}\AND\.{ONEBYTE}{}$)\C{ operation code }\par
+\B\4\D$\.{ONEBYTE}$ \5
+\T{\~77}\C{ Mask to obtain a single byte from the word }\par
+\B\4\D$\.{TWOBYTES}$ \5
+\T{\~7777}\C{ Mask to obtain two bytes from the word }\par
+\B\4\D$\.{FIVEBYTES}$ \5
+\T{\~7777777777}\C{ Mask to obtain five bytes from the word }\par
+\B\4\D$\.{WORDSIZE}$ \5
+$\.{BYTESIZE}*{}$\.{BYTESPERWORD}\C{ Size of MIX word in host machine bits }\par
+\fi
+
+\M{4}Several MIX instruction codes
+\Y\B\4\D$\.{LDA}$ \5
+\T{8}\par
+\B\4\D$\.{LDAN}$ \5
+\T{16}\par
+\B\4\D$\.{STA}$ \5
+\T{24}\par
+\B\4\D$\.{IOC}$ \5
+\T{35}\par
+\B\4\D$\.{IN}$ \5
+\T{36}\par
+\B\4\D$\.{OUT}$ \5
+\T{37}\par
+\B\4\D$\.{JA}$ \5
+\T{40}\par
+\B\4\D$\.{INCA}$ \5
+\T{48}\par
+\B\4\D$\.{CMPA}$ \5
+\T{56}\par
+\fi
+
+\M{5}Overflow toggle values
+\Y\B\4\D$\.{ON}$ \5
+\T{1}\par
+\B\4\D$\.{OFF}$ \5
+\T{0}\par
+\fi
+
+\M{6}Comparator register values
+\Y\B\4\D$\.{LESS}$ \5
+${-}{}$\T{1}\par
+\B\4\D$\.{EQUAL}$ \5
+\T{0}\par
+\B\4\D$\.{GREATER}$ \5
+\T{1}\par
+\fi
+
+\M{7}Define 10 registers and 10 signs, all initialized  to plus zero.
+\Y\B\4\D$\\{areg}$ \5
+\\{reg}[\T{0}]\C{ Magnitude of A-register }\par
+\B\4\D$\\{i1reg}$ \5
+\\{reg}[\T{1}]\C{ Magnitude of index registers }\par
+\B\4\D$\\{i2reg}$ \5
+\\{reg}[\T{2}]\par
+\B\4\D$\\{i3reg}$ \5
+\\{reg}[\T{3}]\par
+\B\4\D$\\{i4reg}$ \5
+\\{reg}[\T{4}]\par
+\B\4\D$\\{i5reg}$ \5
+\\{reg}[\T{5}]\par
+\B\4\D$\\{i6reg}$ \5
+\\{reg}[\T{6}]\par
+\B\4\D$\\{xreg}$ \5
+\\{reg}[\T{7}]\C{ Magnitude of X-register }\par
+\B\4\D$\\{jreg}$ \5
+\\{reg}[\T{8}]\C{ Magnitude of J-register }\par
+\B\4\D$\\{zero}$ \5
+\\{reg}[\T{9}]\C{ Constant zero, for "STZ" }\par
+\B\4\D$\\{signa}$ \5
+\\{sign}[\T{0}]\C{ Sign of A-register }\par
+\B\4\D$\\{sign1}$ \5
+\\{sign}[\T{1}]\C{ Sign of index registers }\par
+\B\4\D$\\{sign2}$ \5
+\\{sign}[\T{2}]\par
+\B\4\D$\\{sign3}$ \5
+\\{sign}[\T{3}]\par
+\B\4\D$\\{sign4}$ \5
+\\{sign}[\T{4}]\par
+\B\4\D$\\{sign5}$ \5
+\\{sign}[\T{5}]\par
+\B\4\D$\\{sign6}$ \5
+\\{sign}[\T{6}]\par
+\B\4\D$\\{signx}$ \5
+\\{sign}[\T{7}]\C{ Sign of X-register }\par
+\B\4\D$\\{signj}$ \5
+\\{sign}[\T{8}]\C{ Sign of J-register }\par
+\B\4\D$\\{signz}$ \5
+\\{sign}[\T{9}]\C{ Sign stored by ``STZ'' }\par
+\fi
+
+\M{8}Breakpoint status flags
+\Y\B\4\D$\.{BP\_SET}$ \5
+\T{\^01}\par
+\B\4\D$\.{BP\_ACTIVE}$ \5
+\T{\^02}\par
+\B\4\D$\.{BP\_IS\_SET}(\|n)$ \5
+$(\\{bpoint}[\|n].\\{flags}\AND\.{BP\_SET}{}$)\par
+\B\4\D$\.{BP\_IS\_ACTIVE}(\|n)$ \5
+$(\\{bpoint}[\|n].\\{flags}\AND\.{BP\_ACTIVE}{}$)\par
+\fi
+
+\M{9}The error routines write to standard error so they need stdio.h
+\Y\B\4\X9:Header files to include\X${}\E{}$\6
+\8\#\&{ifdef} \.{HAVE\_CONFIG\_H}\6
+\8\#\&{include} \.{<config.h>}\6
+\8\#\&{endif}\6
+\8\#\&{include} \.{<stdio.h>}\6
+\8\#\&{include} \.{<stdlib.h>}\6
+\8\#\&{include} \.{<fcntl.h>}\6
+\8\#\&{include} \.{<strings.h>}\6
+\8\#\&{include} \.{<signal.h>}\6
+\8\#\&{include} \.{<unistd.h>}\6
+\8\#\&{include} \.{<errno.h>}\6
+\8\#\&{include} \.{<mix.h>}\6
+\8\#\&{include} \.{<mixsim.h>}\6
+\8\#\&{include} \.{"getopt.h"}\6
+\8\#\&{include} \.{"string.h"}\6
+\8\#\&{include} \.{"error.h"}\6
+\8\#\&{include} \.{"progname.h"}\par
+\U2.\fi
+
+\M{10}
+\Y\B\4\X10:Global variables\X${}\E{}$\6
+\&{long} \\{cell}[\.{MEMSIZE}];\6
+\&{long} \\{reg}[\T{10}]${}\K\{\T{0},\39\T{0},\39\T{0},\39\T{0},\39\T{0},\39%
+\T{0},\39\T{0},\39\T{0},\39\T{0},\39\T{0}\};{}$\6
+\&{long} \\{sign}[\T{10}]${}\K\{\T{0},\39\T{0},\39\T{0},\39\T{0},\39\T{0},\39%
+\T{0},\39\T{0},\39\T{0},\39\T{0},\39\T{0}\};{}$\6
+\&{FILE} ${}{*}\\{infile};{}$\6
+\&{int} \\{termmode}${}\K\T{0};{}$\6
+\&{int} \\{halt};\6
+\&{int} \\{running};\6
+\&{struct} \&{breakpoint} ${}\{{}$\1\6
+\&{int} \\{addr};\C{ Breakpoint address }\6
+\&{int} \\{flags};\C{ Is it set and/or enabled }\6
+\&{unsigned} \\{count};\C{ Number of hits }\6
+\&{unsigned} \\{ignore};\C{ If \PB{$\R\T{0}$}, number of hits to ignore }\6
+\&{unsigned} \\{delete\_after};\C{ If \PB{$\R\T{0}$}, delete after this number
+of hits }\6
+\&{int} \\{next};\C{ Next breakpoint, set on the same location }\2\6
+${}\};{}$\6
+\&{struct} \&{breakpoint} \\{bpoint}[\.{MEMSIZE}];\6
+\&{unsigned} \\{bpind}[\.{MEMSIZE}];\6
+\&{int} \\{lastbreak};\6
+\&{int} \\{stepflag};\6
+\&{int} \\{interrupted};\6
+\&{typedef} \&{void} ${}({*}\&{PFV})(\&{void});{}$\6
+\&{typedef} \&{int} \&{BOOLEAN};\6
+\&{struct} \&{operation} ${}\{{}$\1\6
+\&{PFV} \\{fn};\6
+\&{int} \\{time};\6
+\&{BOOLEAN} \\{iflag};\2\6
+${}\};{}$\6
+\&{void} \\{nop}(\&{void});\6
+\&{void} \\{add}(\&{void});\6
+\&{void} \\{sub}(\&{void});\6
+\&{void} \\{mul}(\&{void});\6
+\&{void} \\{mix\_div}(\&{void});\6
+\&{void} \\{spec}(\&{void});\6
+\&{void} \\{shift}(\&{void});\6
+\&{void} \\{move}(\&{void});\6
+\&{void} \\{load}(\&{void});\6
+\&{void} \\{loadn}(\&{void});\6
+\&{void} \\{store}(\&{void});\6
+\&{void} \\{jbus}(\&{void});\6
+\&{void} \\{ioc}(\&{void});\6
+\&{void} \\{in}(\&{void});\6
+\&{void} \\{out}(\&{void});\6
+\&{void} \\{jred}(\&{void});\6
+\&{void} \\{jump}(\&{void});\6
+\&{void} \\{regjump}(\&{void});\6
+\&{void} \\{addrop}(\&{void});\6
+\&{void} \\{compare}(\&{void});\6
+\&{struct} \&{operation} \\{optable}[\T{64}]${}\K\{{}$\6
+${}\hbox{\>}\{\\{nop},\39\T{1},\39\|F\},{}$\6
+${}\hbox{\>}\{\\{add},\39\T{2},\39\|F\},{}$\6
+${}\hbox{\>}\{\\{sub},\39\T{2},\39\|F\},{}$\6
+${}\hbox{\>}\{\\{mul},\39\T{10},\39\|F\},{}$\6
+${}\hbox{\>}\{\\{mix\_div},\39\T{12},\39\|F\},{}$\6
+${}\hbox{\>}\{\\{spec},\39\T{1},\39\|F\},{}$\6
+${}\hbox{\>}\{\\{shift},\39\T{2},\39\|F\},{}$\6
+${}\hbox{\>}\{\\{move},\39\T{1},\39\|F\},{}$\6
+${}\hbox{\>}\{\\{load},\39\T{2},\39\|F\},{}$\6
+${}\hbox{\>}\{\\{load},\39\T{2},\39\|T\},{}$\6
+${}\hbox{\>}\{\\{load},\39\T{2},\39\|T\},{}$\6
+${}\hbox{\>}\{\\{load},\39\T{2},\39\|T\},{}$\6
+${}\hbox{\>}\{\\{load},\39\T{2},\39\|T\},{}$\6
+${}\hbox{\>}\{\\{load},\39\T{2},\39\|T\},{}$\6
+${}\hbox{\>}\{\\{load},\39\T{2},\39\|T\},{}$\6
+${}\hbox{\>}\{\\{load},\39\T{2},\39\|F\},{}$\6
+${}\hbox{\>}\{\\{loadn},\39\T{2},\39\|T\},{}$\6
+${}\hbox{\>}\{\\{loadn},\39\T{2},\39\|F\},{}$\6
+${}\hbox{\>}\{\\{loadn},\39\T{2},\39\|F\},{}$\6
+${}\hbox{\>}\{\\{loadn},\39\T{2},\39\|F\},{}$\6
+${}\hbox{\>}\{\\{loadn},\39\T{2},\39\|F\},{}$\6
+${}\hbox{\>}\{\\{loadn},\39\T{2},\39\|F\},{}$\6
+${}\hbox{\>}\{\\{loadn},\39\T{2},\39\|F\},{}$\6
+${}\hbox{\>}\{\\{loadn},\39\T{2},\39\|T\},{}$\6
+${}\hbox{\>}\{\\{store},\39\T{2},\39\|F\},{}$\6
+${}\hbox{\>}\{\\{store},\39\T{2},\39\|F\},{}$\6
+${}\hbox{\>}\{\\{store},\39\T{2},\39\|F\},{}$\6
+${}\hbox{\>}\{\\{store},\39\T{2},\39\|F\},{}$\6
+${}\hbox{\>}\{\\{store},\39\T{2},\39\|F\},{}$\6
+${}\hbox{\>}\{\\{store},\39\T{2},\39\|F\},{}$\6
+${}\hbox{\>}\{\\{store},\39\T{2},\39\|F\},{}$\6
+${}\hbox{\>}\{\\{store},\39\T{2},\39\|F\},{}$\6
+${}\hbox{\>}\{\\{store},\39\T{2},\39\|F\},{}$\6
+${}\hbox{\>}\{\\{store},\39\T{2},\39\|F\},{}$\6
+${}\hbox{\>}\{\\{jbus},\39\T{1},\39\|F\},{}$\6
+${}\hbox{\>}\{\\{ioc},\39\T{1},\39\|F\},{}$\6
+${}\hbox{\>}\{\\{in},\39\T{1},\39\|F\},{}$\6
+${}\hbox{\>}\{\\{out},\39\T{1},\39\|F\},{}$\6
+${}\hbox{\>}\{\\{jred},\39\T{1},\39\|F\},{}$\6
+${}\hbox{\>}\{\\{jump},\39\T{1},\39\|F\},{}$\6
+${}\hbox{\>}\{\\{regjump},\39\T{1},\39\|F\},{}$\6
+${}\hbox{\>}\{\\{regjump},\39\T{1},\39\|F\},{}$\6
+${}\hbox{\>}\{\\{regjump},\39\T{1},\39\|F\},{}$\6
+${}\hbox{\>}\{\\{regjump},\39\T{1},\39\|F\},{}$\6
+${}\hbox{\>}\{\\{regjump},\39\T{1},\39\|F\},{}$\6
+${}\hbox{\>}\{\\{regjump},\39\T{1},\39\|F\},{}$\6
+${}\hbox{\>}\{\\{regjump},\39\T{1},\39\|F\},{}$\6
+${}\hbox{\>}\{\\{regjump},\39\T{1},\39\|F\},{}$\6
+${}\hbox{\>}\{\\{addrop},\39\T{1},\39\|F\},{}$\6
+${}\hbox{\>}\{\\{addrop},\39\T{1},\39\|T\},{}$\6
+${}\hbox{\>}\{\\{addrop},\39\T{1},\39\|T\},{}$\6
+${}\hbox{\>}\{\\{addrop},\39\T{1},\39\|T\},{}$\6
+${}\hbox{\>}\{\\{addrop},\39\T{1},\39\|T\},{}$\6
+${}\hbox{\>}\{\\{addrop},\39\T{1},\39\|T\},{}$\6
+${}\hbox{\>}\{\\{addrop},\39\T{1},\39\|T\},{}$\6
+${}\hbox{\>}\{\\{addrop},\39\T{1},\39\|F\},{}$\6
+${}\hbox{\>}\{\\{compare},\39\T{2},\39\|T\},{}$\6
+${}\hbox{\>}\{\\{compare},\39\T{2},\39\|T\},{}$\6
+${}\hbox{\>}\{\\{compare},\39\T{2},\39\|T\},{}$\6
+${}\hbox{\>}\{\\{compare},\39\T{2},\39\|T\},{}$\6
+${}\hbox{\>}\{\\{compare},\39\T{2},\39\|T\},{}$\6
+${}\hbox{\>}\{\\{compare},\39\T{2},\39\|T\},{}$\6
+${}\hbox{\>}\{\\{compare},\39\T{2},\39\|T\},{}$\6
+${}\hbox{\>}\{\\{compare},\39\T{2},\39\|T\}{}$\6
+${}\}{}$;\par
+\As11, 12\ETs63.
+\U2.\fi
+
+\M{11}An array of device structures describing the each of the available
+I/O devices.
+The paper tape unit has temporarily been discontinued.
+
+Setting the clock field of a unit to -1 indicates that
+no I/O operation is outstanding for this unit.
+\Y\B\4\D$\.{TAPE7}$ \5
+\T{7}\par
+\B\4\D$\.{DISK8}$ \5
+\T{8}\par
+\B\4\D$\.{DISK15}$ \5
+\T{15}\par
+\B\4\D$\.{READER}$ \5
+\T{16}\par
+\B\4\D$\.{PUNCH}$ \5
+\T{17}\par
+\B\4\D$\.{PRINTER}$ \5
+\T{18}\par
+\B\4\D$\.{TTY}$ \5
+\T{19}\par
+\B\4\D$\.{MAXUNITS}$ \5
+\T{20}\par
+\Y\B\4\X10:Global variables\X${}\mathrel+\E{}$\6
+\&{void} \\{tape}(\&{void})${},{}$ \\{disk}(\&{void})${},{}$ \\{reader}(%
+\&{void})${},{}$ \\{punch}(\&{void})${},{}$ \\{printer}(\&{void})${},{}$ %
+\\{tty}(\&{void});\6
+\&{const} \&{char} ${}{*}{}$\\{mix\_opname}(\&{int} \|c${},\39{}$\&{int} \|f);\6
+\8\#\&{ifndef} \.{PATH\_MAX}\6
+\8\#\&{define} \.{PATH\_MAX} \5\T{256}\6
+\8\#\&{endif}\6
+\&{struct} \&{io\_device} ${}\{{}$\1\6
+\&{PFV} \\{device};\C{ device function  }\6
+\&{int} \\{io\_time};\C{ transmission time per block }\6
+\&{int} \\{position};\C{ current disk or tape head position }\6
+\&{int} \\{seek\_pos};\C{ seek position on disk }\6
+\&{int} \\{tape\_end};\C{ end of file on tape }\6
+\&{int} \\{seek\_time};\C{ skip or seek time }\6
+\&{int} \\{address};\C{ memory address for current i/o }\6
+\&{int} \\{io\_op};\C{ IOC, IN or OUT }\7
+\\{mix\_clock\_t}\\{clock};\C{ clock time when i/o will occur }\7
+\&{int} \\{complete};\C{ flag for I/O complete }\6
+\&{int} \\{fd};\C{ file descriptor }\6
+\&{FILE} ${}{*}\\{fp}{}$;\C{ stream }\6
+\&{char} \\{path}[\.{PATH\_MAX}];\C{ associated filename }\2\6
+${}\};{}$\6
+\&{struct} \&{io\_device} ${}{*}\\{unitp},{}$ \\{unit}[\.{MAXUNITS}]${}\K\{{}$\6
+${}\hbox{\>}\{\\{tape},\39\T{50},\39\T{0},\39\T{0},\39\T{0},\39\T{50},\39\T{0},%
+\39\T{0},\39\T{0},\39\T{1},\39\T{0},\39\NULL,\39\.{"tape0"}\},{}$\6
+${}\hbox{\>}\{\\{tape},\39\T{50},\39\T{0},\39\T{0},\39\T{0},\39\T{50},\39\T{0},%
+\39\T{0},\39\T{0},\39\T{1},\39\T{0},\39\NULL,\39\.{"tape1"}\},{}$\6
+${}\hbox{\>}\{\\{tape},\39\T{50},\39\T{0},\39\T{0},\39\T{0},\39\T{50},\39\T{0},%
+\39\T{0},\39\T{0},\39\T{1},\39\T{0},\39\NULL,\39\.{"tape2"}\},{}$\6
+${}\hbox{\>}\{\\{tape},\39\T{50},\39\T{0},\39\T{0},\39\T{0},\39\T{50},\39\T{0},%
+\39\T{0},\39\T{0},\39\T{1},\39\T{0},\39\NULL,\39\.{"tape3"}\},{}$\6
+${}\hbox{\>}\{\\{tape},\39\T{50},\39\T{0},\39\T{0},\39\T{0},\39\T{50},\39\T{0},%
+\39\T{0},\39\T{0},\39\T{1},\39\T{0},\39\NULL,\39\.{"tape4"}\},{}$\6
+${}\hbox{\>}\{\\{tape},\39\T{50},\39\T{0},\39\T{0},\39\T{0},\39\T{50},\39\T{0},%
+\39\T{0},\39\T{0},\39\T{1},\39\T{0},\39\NULL,\39\.{"tape5"}\},{}$\6
+${}\hbox{\>}\{\\{tape},\39\T{50},\39\T{0},\39\T{0},\39\T{0},\39\T{50},\39\T{0},%
+\39\T{0},\39\T{0},\39\T{1},\39\T{0},\39\NULL,\39\.{"tape6"}\},{}$\6
+${}\hbox{\>}\{\\{tape},\39\T{50},\39\T{0},\39\T{0},\39\T{0},\39\T{50},\39\T{0},%
+\39\T{0},\39\T{0},\39\T{1},\39\T{0},\39\NULL,\39\.{"tape7"}\},{}$\6
+${}\hbox{\>}\{\\{disk},\39\T{250},\39\T{0},\39\T{0},\39\T{0},\39\T{1},\39\T{0},%
+\39\T{0},\39\T{0},\39\T{1},\39\T{0},\39\NULL,\39\.{"disk0"}\},{}$\6
+${}\hbox{\>}\{\\{disk},\39\T{250},\39\T{0},\39\T{0},\39\T{0},\39\T{1},\39\T{0},%
+\39\T{0},\39\T{0},\39\T{1},\39\T{0},\39\NULL,\39\.{"disk1"}\},{}$\6
+${}\hbox{\>}\{\\{disk},\39\T{250},\39\T{0},\39\T{0},\39\T{0},\39\T{1},\39\T{0},%
+\39\T{0},\39\T{0},\39\T{1},\39\T{0},\39\NULL,\39\.{"disk2"}\},{}$\6
+${}\hbox{\>}\{\\{disk},\39\T{250},\39\T{0},\39\T{0},\39\T{0},\39\T{1},\39\T{0},%
+\39\T{0},\39\T{0},\39\T{1},\39\T{0},\39\NULL,\39\.{"disk3"}\},{}$\6
+${}\hbox{\>}\{\\{disk},\39\T{250},\39\T{0},\39\T{0},\39\T{0},\39\T{1},\39\T{0},%
+\39\T{0},\39\T{0},\39\T{1},\39\T{0},\39\NULL,\39\.{"disk4"}\},{}$\6
+${}\hbox{\>}\{\\{disk},\39\T{250},\39\T{0},\39\T{0},\39\T{0},\39\T{1},\39\T{0},%
+\39\T{0},\39\T{0},\39\T{1},\39\T{0},\39\NULL,\39\.{"disk5"}\},{}$\6
+${}\hbox{\>}\{\\{disk},\39\T{250},\39\T{0},\39\T{0},\39\T{0},\39\T{1},\39\T{0},%
+\39\T{0},\39\T{0},\39\T{1},\39\T{0},\39\NULL,\39\.{"disk6"}\},{}$\6
+${}\hbox{\>}\{\\{disk},\39\T{250},\39\T{0},\39\T{0},\39\T{0},\39\T{1},\39\T{0},%
+\39\T{0},\39\T{0},\39\T{1},\39\T{0},\39\NULL,\39\.{"disk7"}\},{}$\6
+${}\hbox{\>}\{\\{reader},\39\T{10000},\39\T{0},\39\T{0},\39\T{0},\39\T{0},\39%
+\T{0},\39\T{0},\39\T{0},\39\T{1},\39\T{0},\39\NULL,\39\.{"stdin"}\},{}$\6
+${}\hbox{\>}\{\\{punch},\39\T{20000},\39\T{0},\39\T{0},\39\T{0},\39\T{0},\39%
+\T{0},\39\T{0},\39\T{0},\39\T{1},\39\T{0},\39\NULL,\39\.{"stderr"}\},{}$\6
+${}\hbox{\>}\{\\{printer},\39\T{7500},\39\T{0},\39\T{0},\39\T{0},\39\T{10000},%
+\39\T{0},\39\T{0},\39\T{0},\39\T{1},\39\T{0},\39\NULL,\39\.{"stdout"}\},{}$\6
+${}\hbox{\>}\{\\{tty},\39\T{0},\39\T{0},\39\T{0},\39\T{0},\39\T{0},\39\T{0},\39%
+\T{0},\39\T{0},\39\T{1},\39\T{0},\39\NULL,\39\.{"stdin"}\},{}$\6
+${}\}{}$;\par
+\fi
+
+\M{12} Allocate some variables.
+\Y\B\4\X10:Global variables\X${}\mathrel+\E{}$\6
+\&{int} \\{loc};\C{ Location of the next instruction }\6
+\&{int} \\{mem};\C{ Address of the present instruction, plus indexing }\6
+\&{int} \\{op};\C{ Operation code of the present instruction }\6
+\&{int} \\{fld};\C{ F-field of the present instruction }\6
+\&{long} \\{inst};\C{ Instruction being simulated }\6
+\&{int} \\{compi}${}\K\.{EQUAL}{}$;\C{ Comparison indicator }\6
+\&{int} \\{ovtog}${}\K\.{OFF}{}$;\C{ Overflow toggle }\7
+\\{mix\_clock\_t}\\{uclock};\C{ Simulated execution time }\7
+\&{int} \\{instime}${}\K\T{0}{}$;\C{ Time of previous instruction }\6
+\&{long} \\{rA}${},{}$ \\{rX};\C{ Used as work registers to pass data }\6
+\&{int} \\{rI1}${},{}$ \\{rI2};\6
+\&{void} \\{inc}(\,)${},{}$ \\{dec}(\,)${},{}$ \\{sizechk}(\,)${},{}$ %
+\\{ovcheck}(\,)${},{}$ \\{jmp}(\,)${},{}$ \\{jsj}(\,)${},{}$ \\{jumps}(%
+\,)${},{}$ \\{addrerror}(\,)${},{}$ \\{indexerror}(\,)${},{}$ \\{operror}(%
+\,)${},{}$ \\{memerror}(\,)${},{}$ \\{fielderror}(\,)${},{}$ \\{sizeerror}(%
+\,)${},{}$ \\{dump}(\,);\par
+\fi
+
+\M{13}Memory fetch routine
+Returns contents of memory location \PB{\\{mem}}.
+\Y\B\4\X13:Auxiliary Functions\X${}\E{}$\6
+\&{void} \\{memory}(\,)\1\1\2\2\6
+${}\{{}$\1\6
+\&{if} ${}(\\{mem}<\T{0}\V\\{mem}\G\.{MEMSIZE}){}$\1\5
+\\{memerror}(\,);\2\6
+${}\\{rA}\K\.{MAG}(\\{cell}[\\{mem}]){}$;\C{ rA $\leftarrow$ magnitude of word
+}\6
+${}\\{rX}\K\.{SIGN}(\\{cell}[\\{mem}]){}$;\C{ rX $\leftarrow$ sign of word }\6
+\4${}\}{}$\2\par
+\As14, 15, 16, 17, 18, 25, 26, 27, 28, 31, 32, 35, 36, 37, 42, 55, 56, 57, 58,
+59, 60, 68, 69, 70, 93\ETs94.
+\U2.\fi
+
+\M{14}The \PB{\\{fcheck}} subroutine process a partial field specification,
+making sure that it has the form $8L+R$ with $L\le R\le 5$.
+Returns value of L.
+\Y\B\4\X13:Auxiliary Functions\X${}\mathrel+\E{}$\6
+\&{void} \\{fcheck}(\,)\1\1\2\2\6
+${}\{{}$\1\6
+${}\\{rI1}\K\\{rA}\K\\{fld}/\T{8}{}$;\C{ rA $\leftarrow$  L }\6
+${}\\{rI2}\K\\{rX}\K\\{fld}\MOD\T{8}{}$;\C{ rX $\leftarrow$  R }\6
+\&{if} ${}(\\{rA}>\\{rX}\V\\{rX}>\T{5}){}$\1\5
+\\{fielderror}(\,);\C{ Error if L $>$ R or R $>$ 5 }\2\6
+\4${}\}{}$\2\par
+\fi
+
+\M{15}\PB{\\{sizechk}}
+\Y\B\4\X13:Auxiliary Functions\X${}\mathrel+\E{}$\6
+\&{void} \\{sizechk}(\,)\1\1\2\2\6
+${}\{{}$\1\6
+\&{if} ${}(\\{optable}[\\{op}].\\{iflag}){}$\5
+${}\{{}$\C{ Have we just loaded an index register? }\1\6
+\&{if} ${}(\\{abs}(\\{rA})>\.{TWOBYTES}){}$\1\5
+\\{sizeerror}(\,);\C{ Make sure the result fits in two bytes }\2\6
+\4${}\}{}$\2\6
+\&{else}\1\5
+\\{ovcheck}(\,);\2\6
+\4${}\}{}$\2\par
+\fi
+
+\M{16}\PB{\\{ovcheck}}
+\Y\B\4\X13:Auxiliary Functions\X${}\mathrel+\E{}$\6
+\&{void} \\{ovcheck}(\,)\1\1\2\2\6
+${}\{{}$\1\6
+\&{if} ${}(\\{rA}\AND(\.{FIVEBYTES}+\T{1})){}$\1\5
+${}\\{ovtog}\K\.{ON}{}$;\C{ Did overflow just occur? }\2\6
+${}\\{rA}\MRL{\AND{\K}}\.{FIVEBYTES}{}$;\C{ reset overflow bit }\6
+\4${}\}{}$\2\par
+\fi
+
+\M{17}Normally called by \PB{\\{getv}} to extract a field from memory.
+\PB{\\{getav}} is called directly only in comparison operations
+to extract a field from a register.
+\Y\B\4\X13:Auxiliary Functions\X${}\mathrel+\E{}$\6
+\&{void} \\{getav}(\,)\1\1\2\2\6
+${}\{{}$\1\6
+\&{if} (\\{rI1})\5
+${}\{{}$\C{ Is the sign included in the field? }\1\6
+${}\\{rX}\K\.{PLUS}{}$;\C{ If not, set the sign positive. }\6
+${}\\{rA}\MRL{{\LL}{\K}}(\.{BYTESIZE}*(\\{rI1}-\T{1})){}$;\C{ Zero out all
+bytes to the left }\6
+${}\\{rA}\MRL{\AND{\K}}\.{FIVEBYTES};{}$\6
+${}\\{rA}\MRL{{\GG}{\K}}(\.{BYTESIZE}*(\\{rI1}-\T{1})){}$;\C{ of the field. }\6
+\4${}\}{}$\2\6
+${}\\{rA}\MRL{{\GG}{\K}}(\.{BYTESIZE}*(\.{BYTESPERWORD}-\\{rI2})){}$;\C{ Shift
+right into the proper position. }\6
+\4${}\}{}$\2\par
+\fi
+
+\M{18}\PB{\\{getv}} finds the quantity V (namely, the appropriate field
+of location M) used in various MIX operators.
+\Y\B\4\X13:Auxiliary Functions\X${}\mathrel+\E{}$\6
+\&{void} \\{getv}(\,)\1\1\2\2\6
+${}\{{}$\1\6
+\\{fcheck}(\,);\C{ Process the field and set \PB{\\{rI1}} $\leftarrow$ \PB{\|L}
+}\6
+\\{memory}(\,);\C{ \PB{\\{rA}} $\leftarrow$ memory magnitude, \PB{\\{rX}} $%
+\leftarrow$ sign.  }\6
+\\{getav}(\,);\C{ Extract the field }\6
+\4${}\}{}$\2\par
+\fi
+
+\N{2}{19}MIX Instruction Handlers.
+Use NOP to reset the clock if F is 63.
+\Y\B\4\X19:MIX Instruction Handlers\X${}\E{}$\6
+\&{void} \\{nop}(\,)\1\1\2\2\6
+${}\{{}$\C{ after adding 1 for the NOP the clock will be zero. }\1\6
+\&{if} ${}(\\{fld}\E\T{63}){}$\1\5
+${}\\{uclock}\K\T{0};{}$\2\6
+\4${}\}{}$\2\par
+\As20, 21, 22, 23, 24, 29, 30, 33, 34, 38, 39, 40, 41\ETs43.
+\U2.\fi
+
+\M{20}\PB{\\{add}}
+\Y\B\4\X19:MIX Instruction Handlers\X${}\mathrel+\E{}$\6
+\&{void} \\{add}(\,)\1\1\2\2\6
+${}\{{}$\1\6
+\\{getv}(\,);\C{ Get the value V in rA and rX. }\6
+${}\\{rI1}\K\T{0}{}$;\C{ Let rI1 indicate the A register }\6
+\\{inc}(\,);\C{ Go to ``increase'' routine. }\6
+\4${}\}{}$\2\par
+\fi
+
+\M{21}\PB{\\{sub}}
+\Y\B\4\X19:MIX Instruction Handlers\X${}\mathrel+\E{}$\6
+\&{void} \\{sub}(\,)\1\1\2\2\6
+${}\{{}$\1\6
+\\{getv}(\,);\C{ Get the value V in rA and rX. }\6
+${}\\{rI1}\K\T{0}{}$;\C{ Let rI1 indicate the A register }\6
+\\{dec}(\,);\C{ Go to ``decrease'' routine. }\6
+\4${}\}{}$\2\par
+\fi
+
+\M{22}\PB{\\{mul}}
+\Y\B\4\X19:MIX Instruction Handlers\X${}\mathrel+\E{}$\6
+\&{void} \\{mul}(\,)\1\1\2\2\6
+${}\{{}$\1\6
+\&{long} \&{long} \\{work};\C{ 64-bit work area }\7
+\\{getv}(\,);\C{ Get the value V in rA and rX. }\6
+\&{if} ${}(\\{rX}\E\\{signa}{}$)\C{ Are the signs the same? }\1\6
+${}\\{rX}\K\.{PLUS}{}$;\C{ Set rX to the result sign }\2\6
+\&{else}\1\5
+${}\\{rX}\K\.{MINUS};{}$\2\6
+${}\\{signa}\K\\{signx}\K\\{rX}{}$;\C{ Put in both simulated registers }\6
+${}\\{work}\K\\{rA}*{}$(\&{long} \&{long} \&{int}) \\{areg};\6
+${}\\{xreg}\K\\{work}\AND\.{FIVEBYTES};{}$\6
+${}\\{work}\MRL{{\GG}{\K}}\.{WORDSIZE};{}$\6
+${}\\{areg}\K\\{work}\AND\.{FIVEBYTES};{}$\6
+\4${}\}{}$\2\par
+\fi
+
+\M{23}\PB{\\{mix\_div}}
+\Y\B\4\X19:MIX Instruction Handlers\X${}\mathrel+\E{}$\6
+\&{void} \\{mix\_div}(\,)\1\1\2\2\6
+${}\{{}$\1\6
+\&{long} \&{long} \\{work};\C{ 64-bit work area }\7
+${}\\{signx}\K\\{signa}{}$;\C{ Set the sign of the remainder }\6
+\\{getv}(\,);\C{ Get the value V in rA and rX. }\6
+\&{if} ${}(\\{rX}\E\\{signa}{}$)\C{ Are the signs the same? }\1\6
+${}\\{rX}\K\.{PLUS}{}$;\C{ Set rX to the result sign }\2\6
+\&{else}\1\5
+${}\\{rX}\K\.{MINUS};{}$\2\6
+${}\\{signa}\K\\{rX}{}$;\C{ Put it in the simulated rA }\6
+\&{if} ${}(\\{areg}>\\{rA}){}$\1\5
+${}\\{ovtog}\K\.{ON}{}$;\C{ The quotient will not fit in 5 bytes }\2\6
+${}\\{work}\K\\{areg}{}$;\C{ Divide the operands }\6
+${}\\{work}\MRL{{\LL}{\K}}\.{WORDSIZE};{}$\6
+${}\\{work}\MRL{{\OR}{\K}}\\{xreg};{}$\6
+${}\\{areg}\K(\\{work}/\\{rA})\AND\.{FIVEBYTES};{}$\6
+${}\\{xreg}\K\\{work}\MOD\\{rA};{}$\6
+\4${}\}{}$\2\par
+\fi
+
+\M{24}\PB{\\{load}}
+\Y\B\4\X19:MIX Instruction Handlers\X${}\mathrel+\E{}$\6
+\&{void} \\{loadn}(\,)\1\1\2\2\6
+${}\{{}$\1\6
+\\{getv}(\,);\C{ Get the value V in rA and rX. }\6
+${}\\{rI1}\K\\{op}-\.{LDAN}{}$;\C{ Register }\6
+${}\\{rX}\K\\{rX}\?\.{PLUS}:\.{MINUS}{}$;\C{ Negate the sign. }\6
+${}\\{reg}[\\{rI1}]\K\\{rA}\AND\.{FIVEBYTES};{}$\6
+${}\\{sign}[\\{rI1}]\K\\{rX};{}$\6
+\\{sizechk}(\,);\6
+\4${}\}{}$\2\par
+\fi
+
+\M{25}
+\Y\B\4\X13:Auxiliary Functions\X${}\mathrel+\E{}$\6
+\&{void} \\{load}(\,)\1\1\2\2\6
+${}\{{}$\1\6
+\\{getv}(\,);\C{ Get the value V in rA and rX. }\6
+${}\\{rI1}\K\\{op}-\.{LDA}{}$;\C{ Register }\6
+${}\\{reg}[\\{rI1}]\K\\{rA}\AND\.{FIVEBYTES};{}$\6
+${}\\{sign}[\\{rI1}]\K\\{rX};{}$\6
+\\{sizechk}(\,);\6
+\4${}\}{}$\2\par
+\fi
+
+\M{26}\PB{\\{store}}
+\Y\B\4\X13:Auxiliary Functions\X${}\mathrel+\E{}$\6
+\&{void} \\{store}(\,)\1\1\2\2\6
+${}\{{}$\1\6
+\&{long} \\{work};\7
+\\{fcheck}(\,);\C{ rI1 $\leftarrow$ L. }\6
+\\{memory}(\,);\C{ Get the contents of the memory location. }\6
+\&{if} ${}(\R\\{rI1}){}$\5
+${}\{{}$\C{ Is the sign included in the field }\1\6
+${}\\{rI1}\K\T{1}{}$;\C{ If so, change L to 1 }\6
+${}\\{rX}\K\\{sign}[\\{op}-\.{STA}]{}$;\C{  and ``store'' the register's sign }%
+\6
+\4${}\}{}$\2\6
+${}\\{rA}\MRL{{\LL}{\K}}(\.{BYTESIZE}*\\{rI2});{}$\6
+${}\\{rA}\MRL{\AND{\K}}\.{FIVEBYTES};{}$\6
+${}\\{rA}\MRL{{\GG}{\K}}(\.{BYTESIZE}*\\{rI2});{}$\6
+${}\\{work}\K\\{rA}{}$;\C{ save the area to the field's right }\6
+${}\\{rA}\K\\{cell}[\\{mem}];{}$\6
+${}\\{rA}\MRL{\AND{\K}}\.{FIVEBYTES};{}$\6
+${}\\{rA}\MRL{{\GG}{\K}}(\.{BYTESIZE}*(\.{BYTESPERWORD}-(\\{rI1}-\T{1})));{}$\6
+${}\\{rA}\MRL{{\LL}{\K}}(\.{BYTESIZE}*(\.{BYTESPERWORD}-(\\{rI1}-\T{1})));{}$\6
+${}\\{work}\MRL{{\OR}{\K}}\\{rA}{}$;\C{ OR in area to field's left }\6
+${}\\{rA}\K\\{reg}[\\{op}-\.{STA}];{}$\6
+${}\\{rA}\MRL{{\LL}{\K}}(\.{BYTESIZE}*(\.{BYTESPERWORD}-\\{rI2}+(\\{rI1}-%
+\T{1}))){}$;\C{ Truncate register }\6
+${}\\{rA}\MRL{\AND{\K}}\.{FIVEBYTES};{}$\6
+${}\\{rA}\MRL{{\GG}{\K}}(\.{BYTESIZE}*(\\{rI1}-\T{1})){}$;\C{ Right adjust
+register }\6
+${}\\{work}\MRL{{\OR}{\K}}\\{rA}{}$;\C{ OR in register }\6
+${}\\{work}\MRL{{\OR}{\K}}\\{rX}{}$;\C{ OR in sign }\6
+${}\\{cell}[\\{mem}]\K\\{work};{}$\6
+\4${}\}{}$\2\par
+\fi
+
+\M{27}\PB{\\{jump}}
+\Y\B\4\X13:Auxiliary Functions\X${}\mathrel+\E{}$\6
+\&{void} \\{jump}(\,)\1\1\2\2\6
+${}\{{}$\1\6
+\&{if} ${}(\\{fld}>\T{9}){}$\1\5
+\\{fielderror}(\,);\C{ Is F too large? }\2\6
+${}\\{rA}\K\\{compi}{}$;\C{ rA $\leftarrow$ comparison indicator. }\6
+\\{jumps}(\\{fld});\6
+\4${}\}{}$\2\par
+\fi
+
+\M{28}
+\Y\B\4\X13:Auxiliary Functions\X${}\mathrel+\E{}$\6
+\&{void} \\{jumps}(\&{int} \\{fld})\1\1\2\2\6
+${}\{{}$\1\6
+\&{switch} (\\{fld})\5
+${}\{{}$\1\6
+\4\&{case} \T{0}:\C{ jmp }\6
+\\{jmp}(\,);\6
+\&{break};\6
+\4\&{case} \T{1}:\C{ jsj }\6
+\\{jsj}(\,);\6
+\&{break};\6
+\4\&{case} \T{2}:\C{ jov }\6
+${}\\{rX}\K\\{ovtog};{}$\6
+${}\\{ovtog}\K\.{OFF}{}$;\C{ Shut off overflow toggle. }\6
+\&{if} (\\{rX})\1\5
+\\{jmp}(\,);\2\6
+\&{break};\6
+\4\&{case} \T{3}:\C{ jnov }\6
+${}\\{rX}\K\\{ovtog};{}$\6
+${}\\{ovtog}\K\.{OFF}{}$;\C{ Shut off overflow toggle. }\6
+\&{if} ${}(\R\\{rX}){}$\1\5
+\\{jmp}(\,);\2\6
+\&{break};\6
+\4\&{case} \T{4}:\C{ ls }\6
+\&{if} ${}(\\{rA}<\T{0}){}$\1\5
+\\{jmp}(\,);\C{ Jump if rA negative. }\2\6
+\&{break};\6
+\4\&{case} \T{5}:\C{ eq }\6
+\&{if} ${}(\\{rA}\E\T{0}){}$\1\5
+\\{jmp}(\,);\C{ Jump if rA zero. }\2\6
+\&{break};\6
+\4\&{case} \T{6}:\C{ gr }\6
+\&{if} ${}(\\{rA}>\T{0}){}$\1\5
+\\{jmp}(\,);\C{ Jump if rA positive. }\2\6
+\&{break};\6
+\4\&{case} \T{7}:\C{ ge }\6
+\&{if} ${}(\\{rA}\G\T{0}){}$\1\5
+\\{jmp}(\,);\C{ Jump if rA zero or positive. }\2\6
+\&{break};\6
+\4\&{case} \T{8}:\C{ ne }\6
+\&{if} ${}(\\{rA}\I\T{0}){}$\1\5
+\\{jmp}(\,);\C{ Jump if rA negative or positive. }\2\6
+\&{break};\6
+\4\&{case} \T{9}:\C{ le }\6
+\&{if} ${}(\\{rA}\Z\T{0}){}$\1\5
+\\{jmp}(\,);\C{ Jump if rA zero or negative. }\2\6
+\&{break};\6
+\4${}\}{}$\2\6
+\4${}\}{}$\2\par
+\fi
+
+\M{29}
+\Y\B\4\X19:MIX Instruction Handlers\X${}\mathrel+\E{}$\6
+\&{void} \\{jmp}(\,)\1\1\2\2\6
+${}\{{}$\1\6
+${}\\{jreg}\K\\{loc}{}$;\C{ Set the simulated J-register }\6
+\\{jsj}(\,);\6
+\4${}\}{}$\2\par
+\fi
+
+\M{30}
+\Y\B\4\X19:MIX Instruction Handlers\X${}\mathrel+\E{}$\6
+\&{void} \\{jsj}(\,)\1\1\2\2\6
+${}\{{}$\1\6
+\\{memory}(\,);\C{ Check for valid memory address. }\6
+${}\\{loc}\K\\{mem};{}$\6
+\4${}\}{}$\2\par
+\fi
+
+\M{31}\PB{\\{regjump}}
+\Y\B\4\X13:Auxiliary Functions\X${}\mathrel+\E{}$\6
+\&{void} \\{regjump}(\,)\1\1\2\2\6
+${}\{{}$\1\6
+${}\\{rA}\K\\{reg}[\\{op}-\.{JA}]{}$;\C{ Register jumps }\6
+${}\\{rA}\K\\{sign}[\\{op}-\.{JA}]\?{-}\\{rA}:\\{rA};{}$\6
+\&{if} ${}(\\{fld}>\T{5}){}$\1\5
+\\{fielderror}(\,);\2\6
+${}\\{jumps}(\\{fld}+\T{4});{}$\6
+\4${}\}{}$\2\par
+\fi
+
+\M{32}\PB{\\{addrop}}
+\Y\B\4\X13:Auxiliary Functions\X${}\mathrel+\E{}$\6
+\&{void} \\{addrop}(\,)\C{ Address transfer operations }\6
+${}\{{}$\1\6
+\&{if} ${}(\\{fld}>\T{3}){}$\1\5
+\\{fielderror}(\,);\C{ Is F too large? }\C{  When M is zero ENTA loads the sign
+of }\C{  the instruction and ENNA loads the opposite sign. }\2\6
+\&{if} ${}(\R\\{mem}){}$\1\5
+${}\\{rX}\K\.{SIGN}(\\{inst});{}$\2\6
+\&{else}\1\5
+${}\\{rX}\K\\{mem}<\T{0}\?\.{MINUS}:\.{PLUS};{}$\2\6
+${}\\{rA}\K\\{mem}>\T{0}\?\\{mem}:{-}\\{mem}{}$;\C{ rX $\leftarrow$ sign of M,
+and rA $\leftarrow$ the magnitude. }\6
+${}\\{rI1}\K\\{op}-\.{INCA}{}$;\C{ rI1 indicates the register. }\6
+\&{switch} (\\{fld})\5
+${}\{{}$\1\6
+\4\&{case} \T{0}:\5
+\\{inc}(\,);\6
+\&{break};\6
+\4\&{case} \T{1}:\5
+\\{dec}(\,);\6
+\&{break};\6
+\4\&{case} \T{2}:\C{ enta }\6
+${}\\{reg}[\\{rI1}]\K\\{rA}\AND\.{FIVEBYTES};{}$\6
+${}\\{sign}[\\{rI1}]\K\\{rX};{}$\6
+\\{sizechk}(\,);\6
+\&{break};\6
+\4\&{case} \T{3}:\C{ enna }\6
+${}\\{reg}[\\{rI1}]\K\\{rA}\AND\.{FIVEBYTES};{}$\6
+${}\\{sign}[\\{rI1}]\K\\{rX}\?\.{PLUS}:\.{MINUS}{}$;\C{ Negate the sign. }\6
+\\{sizechk}(\,);\6
+\&{break};\6
+\4${}\}{}$\2\6
+\4${}\}{}$\2\par
+\fi
+
+\M{33}
+\Y\B\4\X19:MIX Instruction Handlers\X${}\mathrel+\E{}$\6
+\&{void} \\{dec}(\,)\1\1\2\2\6
+${}\{{}$\1\6
+${}\\{rX}\K\\{rX}\?\.{PLUS}:\.{MINUS}{}$;\C{ Reverse the sign. }\6
+\\{inc}(\,);\C{ Reduce dec to inc }\6
+\4${}\}{}$\2\par
+\fi
+
+\M{34}
+\Y\B\4\X19:MIX Instruction Handlers\X${}\mathrel+\E{}$\6
+\&{void} \\{inc}(\,)\C{ Addition routine: }\6
+${}\{{}$\1\6
+\&{if} ${}(\\{rX}\I\\{sign}[\\{rI1}]){}$\5
+${}\{{}$\C{ Are the signs the same? }\1\6
+${}\\{rA}\MRL{-{\K}}\\{reg}[\\{rI1}]{}$;\C{ No; subtract the magnitudes }\6
+\&{if} ${}(\\{rA}>\T{0}{}$)\C{ Sign change needed? }\1\6
+${}\\{sign}[\\{rI1}]\K\\{rX}{}$;\C{ Change the register's sign }\2\6
+\&{else}\1\5
+${}\\{rA}\K{-}\\{rA}{}$;\C{ rA is the magnitude of the difference }\2\6
+\4${}\}{}$\2\6
+\&{else}\1\5
+${}\\{rA}\MRL{+{\K}}\\{reg}[\\{rI1}]{}$;\C{ Add magnitudes }\2\6
+${}\\{reg}[\\{rI1}]\K\\{rA}\AND\.{FIVEBYTES}{}$;\C{ Store the magnitude of the
+result }\6
+\\{sizechk}(\,);\6
+\4${}\}{}$\2\par
+\fi
+
+\M{35}\PB{\\{compare}}
+\Y\B\4\X13:Auxiliary Functions\X${}\mathrel+\E{}$\6
+\&{void} \\{compare}(\,)\1\1\2\2\6
+${}\{{}$\1\6
+\&{long} \|v;\7
+\\{getv}(\,);\6
+${}\|v\K\\{rX}\?{-}\\{rA}:\\{rA}{}$;\C{ Attach the sign }\6
+${}\\{rA}\K\\{reg}[\\{op}-\.{CMPA}]{}$;\C{ Get field F of the appropriate
+register }\6
+${}\\{rX}\K\\{sign}[\\{op}-\.{CMPA}];{}$\6
+\\{getav}(\,);\6
+${}\\{rX}\K\\{rX}\?{-}\\{rA}:\\{rA}{}$;\C{ Attach the sign }\6
+\&{if} ${}(\\{rX}\E\|v){}$\1\5
+${}\\{compi}\K\.{EQUAL}{}$;\C{ Set comparison indicator to either }\2\6
+\&{else}\1\5
+${}\\{compi}\K\\{rX}>\|v\?\.{GREATER}:\.{LESS}{}$;\C{ zero, plus one, or minus
+one. }\2\6
+\4${}\}{}$\2\par
+\fi
+
+\M{36}\PB{\\{shift}}
+\Y\B\4\X13:Auxiliary Functions\X${}\mathrel+\E{}$\6
+\&{void} \\{shift}(\,)\1\1\2\2\6
+${}\{{}$\1\6
+\&{unsigned} \&{long} \&{long} \\{work}${},{}$ \\{work1};\7
+\&{if} ${}(\\{mem}<\T{0}){}$\1\5
+\\{addrerror}(\,);\2\6
+\&{if} ${}(\\{fld}>\T{5}){}$\1\5
+\\{fielderror}(\,);\2\6
+${}\\{rA}\K\\{areg};{}$\6
+${}\\{work}\K\\{areg};{}$\6
+${}\\{work}\MRL{{\LL}{\K}}\.{WORDSIZE};{}$\6
+${}\\{work}\MRL{{\OR}{\K}}\\{xreg};{}$\6
+\&{switch} (\\{fld})\5
+${}\{{}$\1\6
+\4\&{case} \T{0}:\C{ sla }\6
+\&{if} ${}(\\{mem}>\.{BYTESPERWORD}){}$\1\5
+${}\\{mem}\K\.{BYTESPERWORD};{}$\2\6
+${}\\{rA}\MRL{{\LL}{\K}}\\{mem}*\.{BYTESIZE};{}$\6
+${}\\{areg}\K\\{rA}\AND\.{FIVEBYTES};{}$\6
+\&{break};\6
+\4\&{case} \T{1}:\C{ sra }\6
+\&{if} ${}(\\{mem}>\.{BYTESPERWORD}){}$\1\5
+${}\\{mem}\K\.{BYTESPERWORD};{}$\2\6
+${}\\{rA}\MRL{{\GG}{\K}}\\{mem}*\.{BYTESIZE};{}$\6
+${}\\{areg}\K\\{rA};{}$\6
+\&{break};\6
+\4\&{case} \T{2}:\C{ slax }\6
+\&{if} ${}(\\{mem}>(\T{2}*\.{BYTESPERWORD})){}$\1\5
+${}\\{mem}\K(\T{2}*\.{BYTESPERWORD});{}$\2\6
+${}\\{work}\MRL{{\LL}{\K}}\\{mem}*\.{BYTESIZE};{}$\6
+${}\\{rX}\K\\{work}\AND\.{FIVEBYTES};{}$\6
+${}\\{work}\MRL{{\GG}{\K}}\.{WORDSIZE};{}$\6
+${}\\{rA}\K\\{work}\AND\.{FIVEBYTES};{}$\6
+${}\\{areg}\K\\{rA};{}$\6
+${}\\{xreg}\K\\{rX};{}$\6
+\&{break};\6
+\4\&{case} \T{3}:\C{ srax }\6
+\&{if} ${}(\\{mem}>(\T{2}*\.{BYTESPERWORD})){}$\1\5
+${}\\{mem}\K(\T{2}*\.{BYTESPERWORD});{}$\2\6
+${}\\{work}\MRL{{\GG}{\K}}\\{mem}*\.{BYTESIZE};{}$\6
+${}\\{rX}\K\\{work}\AND\.{FIVEBYTES};{}$\6
+${}\\{work}\MRL{{\GG}{\K}}\.{WORDSIZE};{}$\6
+${}\\{rA}\K\\{work}\AND\.{FIVEBYTES};{}$\6
+${}\\{areg}\K\\{rA};{}$\6
+${}\\{xreg}\K\\{rX};{}$\6
+\&{break};\6
+\4\&{case} \T{4}:\C{ slc }\6
+${}\\{mem}\MRL{{\MOD}{\K}}(\T{2}*\.{BYTESPERWORD});{}$\6
+${}\\{work1}\K\\{work};{}$\6
+${}\\{work}\MRL{{\LL}{\K}}\\{mem}*\.{BYTESIZE};{}$\6
+${}\\{work1}\MRL{{\GG}{\K}}(((\T{2}*\.{BYTESPERWORD})-\\{mem})*%
+\.{BYTESIZE});{}$\6
+${}\\{work}\MRL{{\OR}{\K}}\\{work1}{}$;\C{ restore circulated bits }\6
+${}\\{rX}\K\\{work}\AND\.{FIVEBYTES};{}$\6
+${}\\{work}\MRL{{\GG}{\K}}\.{WORDSIZE};{}$\6
+${}\\{rA}\K\\{work}\AND\.{FIVEBYTES};{}$\6
+${}\\{areg}\K\\{rA};{}$\6
+${}\\{xreg}\K\\{rX};{}$\6
+\&{break};\6
+\4\&{case} \T{5}:\C{ src }\6
+${}\\{mem}\MRL{{\MOD}{\K}}(\T{2}*\.{BYTESPERWORD});{}$\6
+${}\\{work1}\K\\{work};{}$\6
+${}\\{work}\MRL{{\GG}{\K}}\\{mem}*\.{BYTESIZE};{}$\6
+${}\\{work1}\MRL{{\LL}{\K}}(((\T{2}*\.{BYTESPERWORD})-\\{mem})*%
+\.{BYTESIZE});{}$\6
+${}\\{work}\MRL{{\OR}{\K}}\\{work1}{}$;\C{ restore circulated bits }\6
+${}\\{rX}\K\\{work}\AND\.{FIVEBYTES};{}$\6
+${}\\{work}\MRL{{\GG}{\K}}\.{WORDSIZE};{}$\6
+${}\\{rA}\K\\{work}\AND\.{FIVEBYTES};{}$\6
+${}\\{areg}\K\\{rA};{}$\6
+${}\\{xreg}\K\\{rX};{}$\6
+\&{break};\6
+\4${}\}{}$\2\6
+\4${}\}{}$\2\par
+\fi
+
+\M{37}\PB{\\{move}}
+\Y\B\4\X13:Auxiliary Functions\X${}\mathrel+\E{}$\6
+\&{void} \\{move}(\,)\1\1\2\2\6
+${}\{{}$\1\6
+\&{while} (\\{fld})\5
+${}\{{}$\1\6
+\\{memory}(\,);\6
+${}\\{rX}\MRL{{\OR}{\K}}\\{rA};{}$\6
+${}\\{rI1}\K\\{i1reg};{}$\6
+${}\\{rA}\K\\{sign1};{}$\6
+\&{if} (\\{rA})\5
+${}\{{}$\1\6
+\&{if} (\\{rI1})\1\5
+\\{memerror}(\,);\2\6
+${}\\{sign1}\K\T{0};{}$\6
+\4${}\}{}$\2\6
+\&{if} ${}(\\{rI1}>\.{MEMSIZE}){}$\1\5
+\\{memerror}(\,);\2\6
+${}\\{cell}[\\{rI1}]\K\\{rX};{}$\6
+${}\\{uclock}\MRL{+{\K}}\T{2};{}$\6
+${}\\{rI1}\PP;{}$\6
+${}\\{i1reg}\K\\{rI1};{}$\6
+${}\\{mem}\PP;{}$\6
+${}\\{fld}\MM;{}$\6
+\4${}\}{}$\2\6
+\4${}\}{}$\2\par
+\fi
+
+\M{38}\PB{\\{jbus}}
+\Y\B\4\X19:MIX Instruction Handlers\X${}\mathrel+\E{}$\6
+\&{void} \\{jbus}(\,)\1\1\2\2\6
+${}\{{}$\1\6
+\&{if} ${}(\\{unitp}\MG\\{clock}>\\{uclock}){}$\5
+${}\{{}$\C{ Is there incomplete I/O on this unit? }\1\6
+\&{if} ${}(\\{loc}-\T{1}\E\\{mem}){}$\5
+${}\{{}$\C{ Check for JBUS * }\1\6
+${}\\{do\_outstanding\_io}(\\{unitp}\MG\\{clock});{}$\6
+${}\\{uclock}\K\\{unitp}\MG\\{clock};{}$\6
+\4${}\}{}$\2\6
+\\{jmp}(\,);\6
+\4${}\}{}$\2\6
+\4${}\}{}$\2\par
+\fi
+
+\M{39}\PB{\\{ioc}}
+\Y\B\4\X19:MIX Instruction Handlers\X${}\mathrel+\E{}$\6
+\&{void} \\{ioc}(\,)\1\1\2\2\6
+${}\{{}$\1\6
+\&{if} ${}(\\{fld}\E\.{PUNCH}\V\\{fld}\E\.{READER}){}$\1\5
+\&{return};\C{ ignore IOC for these units }\2\6
+\&{if} ${}(\\{unitp}\MG\\{clock}>\\{uclock}){}$\5
+${}\{{}$\C{ Is there i/o  outstanding? }\1\6
+${}\\{do\_outstanding\_io}(\\{unitp}\MG\\{clock});{}$\6
+${}\\{uclock}\K\\{unitp}\MG\\{clock};{}$\6
+\\{do\_io}(\,);\6
+\4${}\}{}$\2\6
+\&{if} ${}(\\{unitp}\MG\\{clock}>\\{uclock}){}$\5
+${}\{{}$\C{ Is there still i/o outstanding? }\1\6
+${}\\{do\_outstanding\_io}(\\{unitp}\MG\\{clock});{}$\6
+${}\\{uclock}\K\\{unitp}\MG\\{clock};{}$\6
+\\{do\_io}(\,);\6
+\4${}\}{}$\2\6
+${}\\{unitp}\MG\\{io\_op}\K\\{op};{}$\6
+${}\\{unitp}\MG\\{address}\K\\{mem};{}$\6
+\&{if} ${}(\\{fld}\Z\.{TAPE7}){}$\5
+${}\{{}$\1\6
+\&{if} (\\{mem})\1\5
+${}\\{unitp}\MG\\{clock}\K\\{uclock}+\\{abs}(\\{mem})*\\{unitp}\MG\\{seek%
+\_time};{}$\2\6
+\&{else}\1\5
+${}\\{unitp}\MG\\{clock}\K\\{uclock}+\\{unitp}\MG\\{position}*\\{unitp}\MG%
+\\{seek\_time};{}$\2\6
+\4${}\}{}$\2\6
+\&{if} ${}(\.{DISK8}\Z\\{fld}\W\\{fld}\Z\.{DISK15}){}$\5
+${}\{{}$\C{ disk seek }\1\6
+${}\\{unitp}\MG\\{clock}\K\\{uclock}+\\{abs}(\\{xreg}-\\{unitp}\MG%
+\\{position})*\\{unitp}\MG\\{seek\_time};{}$\6
+${}\\{unitp}\MG\\{seek\_pos}\K\\{xreg}{}$;\C{ remember where to seek }\6
+\4${}\}{}$\2\6
+\&{if} ${}(\\{fld}\E\.{PRINTER}){}$\5
+${}\{{}$\1\6
+${}\\{unitp}\MG\\{clock}\K\\{uclock}+\\{unitp}\MG\\{seek\_time};{}$\6
+\4${}\}{}$\2\6
+\4${}\}{}$\2\par
+\fi
+
+\M{40}\PB{\\{in}}
+\Y\B\4\X19:MIX Instruction Handlers\X${}\mathrel+\E{}$\6
+\&{void} \\{in}(\,)\1\1\2\2\6
+${}\{{}$\1\6
+\&{if} ${}(\\{unitp}\MG\\{clock}>\\{uclock}){}$\5
+${}\{{}$\C{ Is there i/o  outstanding? }\1\6
+${}\\{do\_outstanding\_io}(\\{unitp}\MG\\{clock});{}$\6
+${}\\{uclock}\K\\{unitp}\MG\\{clock};{}$\6
+\\{do\_io}(\,);\6
+\4${}\}{}$\2\6
+\&{if} ${}(\\{unitp}\MG\\{clock}>\\{uclock}){}$\5
+${}\{{}$\C{ Is there still i/o outstanding? }\1\6
+${}\\{do\_outstanding\_io}(\\{unitp}\MG\\{clock});{}$\6
+${}\\{uclock}\K\\{unitp}\MG\\{clock};{}$\6
+\\{do\_io}(\,);\6
+\4${}\}{}$\2\6
+${}\\{unitp}\MG\\{io\_op}\K\\{op};{}$\6
+${}\\{unitp}\MG\\{address}\K\\{mem}{}$;\C{ Remember where the input is to go to
+}\6
+${}\\{unitp}\MG\\{clock}\K\\{uclock}+\\{unitp}\MG\\{io\_time}/\T{2};{}$\6
+${}\\{unitp}\MG\\{complete}\K\|F{}$;\C{ flag as not done }\6
+\&{if} ${}(\\{fld}\G\.{DISK8}\W\\{fld}\Z\.{DISK15}){}$\5
+${}\{{}$\C{ disk i/o }\1\6
+${}\\{unitp}\MG\\{clock}\MRL{+{\K}}\\{abs}(\\{xreg}-\\{unitp}\MG\\{position})*%
+\\{unitp}\MG\\{seek\_time};{}$\6
+${}\\{unitp}\MG\\{seek\_pos}\K\\{xreg}{}$;\C{ remember where to seek }\6
+\4${}\}{}$\2\6
+\4${}\}{}$\2\par
+\fi
+
+\M{41}\PB{\\{jred}}
+\Y\B\4\X19:MIX Instruction Handlers\X${}\mathrel+\E{}$\6
+\&{void} \\{jred}(\,)\1\1\2\2\6
+${}\{{}$\1\6
+\&{if} ${}(\\{unitp}\MG\\{clock}\Z\\{uclock}){}$\1\5
+\\{jmp}(\,);\2\6
+\4${}\}{}$\2\par
+\fi
+
+\M{42}\PB{\\{spec}}
+\Y\B\4\X13:Auxiliary Functions\X${}\mathrel+\E{}$\6
+\&{void} \\{spec}(\,)\1\1\2\2\6
+${}\{{}$\1\6
+\&{long} \&{long} \|n${},{}$ \|m;\6
+\&{char} \\{work}[\T{11}];\6
+\&{int} \|i;\6
+\&{int} \\{table}[\T{10}]${}\K\{\T{30},\39\T{31},\39\T{32},\39\T{33},\39\T{34},%
+\39\T{35},\39\T{36},\39\T{37},\39\T{38},\39\T{39}\};{}$\7
+\&{if} ${}(\\{fld}>\T{2}){}$\1\5
+\\{fielderror}(\,);\2\6
+\&{switch} (\\{fld})\5
+${}\{{}$\1\6
+\4\&{case} \T{0}:\C{ num }\6
+${}\|n\K\T{0};{}$\6
+${}\|m\K\T{1};{}$\6
+\&{for} ${}(\|i\K\T{0};{}$ ${}\|i<\.{BYTESPERWORD};{}$ ${}\|i\PP){}$\5
+${}\{{}$\C{ shift right and take modulus 64 to }\1\6
+${}\|n\MRL{+{\K}}(\\{xreg}\GG\.{BYTESIZE}*\|i)\MOD\T{64}\MOD\T{10}*\|m{}$;\C{
+isolate the byte, take modulus 10 }\6
+${}\|m\MRL{*{\K}}\T{10}{}$;\C{ finally raise to the appropriate power of 10. }\6
+\4${}\}{}$\2\6
+\&{for} ${}(\|i\K\T{0};{}$ ${}\|i<\.{BYTESPERWORD};{}$ ${}\|i\PP){}$\5
+${}\{{}$\1\6
+${}\|n\MRL{+{\K}}(\\{areg}\GG\.{BYTESIZE}*\|i)\MOD\T{64}\MOD\T{10}*\|m;{}$\6
+${}\|m\MRL{*{\K}}\T{10};{}$\6
+\4${}\}{}$\2\6
+${}\\{areg}\K\|n\AND\.{FIVEBYTES};{}$\6
+\&{if} ${}(\\{areg}\I\|n){}$\1\5
+${}\\{ovtog}\K\.{ON};{}$\2\6
+${}\\{uclock}\MRL{+{\K}}\T{9};{}$\6
+\&{break};\6
+\4\&{case} \T{1}:\C{ char }\6
+${}\\{sprintf}(\\{work},\39\.{"\%010ld"},\39\\{areg});{}$\6
+${}\\{areg}\K\\{xreg}\K\T{0};{}$\6
+\&{for} ${}(\|i\K\T{0};{}$ ${}\|i<\.{BYTESPERWORD};{}$ ${}\|i\PP){}$\5
+${}\{{}$\1\6
+${}\\{areg}\MRL{{\OR}{\K}}\\{table}[\\{work}[\|i]-\.{'0'}]\LL((%
+\.{BYTESPERWORD}-(\|i+\T{1}))*\.{BYTESIZE});{}$\6
+${}\\{xreg}\MRL{{\OR}{\K}}\\{table}[\\{work}[\|i+\.{BYTESPERWORD}]-\.{'0'}]%
+\LL((\.{BYTESPERWORD}-(\|i+\T{1}))*\.{BYTESIZE});{}$\6
+\4${}\}{}$\2\6
+${}\\{uclock}\MRL{+{\K}}\T{9};{}$\6
+\&{break};\6
+\4\&{case} \T{2}:\C{ hlt }\6
+\\{do\_outstanding\_io}(\.{FIVEBYTES});\C{ tag with a large value }\6
+\\{dump}(\,);\6
+\&{if} (\\{termmode})\1\5
+${}\\{halt}\K\T{1};{}$\2\6
+\&{else}\1\5
+${}\\{exit}({-}\T{1});{}$\2\6
+\4${}\}{}$\2\6
+\4${}\}{}$\2\par
+\fi
+
+\M{43}\PB{\\{out}}
+\Y\B\4\X19:MIX Instruction Handlers\X${}\mathrel+\E{}$\6
+\&{void} \\{out}(\,)\1\1\2\2\6
+${}\{{}$\1\6
+\&{if} ${}(\\{unitp}\MG\\{clock}>\\{uclock}){}$\5
+${}\{{}$\C{ Is there i/o  outstanding? }\1\6
+${}\\{do\_outstanding\_io}(\\{unitp}\MG\\{clock});{}$\6
+${}\\{uclock}\K\\{unitp}\MG\\{clock};{}$\6
+\\{do\_io}(\,);\6
+\4${}\}{}$\2\6
+\&{if} ${}(\\{unitp}\MG\\{clock}>\\{uclock}){}$\5
+${}\{{}$\C{ Is there still i/o outstanding? }\1\6
+${}\\{do\_outstanding\_io}(\\{unitp}\MG\\{clock});{}$\6
+${}\\{uclock}\K\\{unitp}\MG\\{clock};{}$\6
+\\{do\_io}(\,);\6
+\4${}\}{}$\2\6
+${}\\{unitp}\MG\\{io\_op}\K\\{op};{}$\6
+${}\\{unitp}\MG\\{address}\K\\{mem}{}$;\C{ Remember where the output is to come
+from }\6
+${}\\{unitp}\MG\\{clock}\K\\{uclock}+\\{unitp}\MG\\{io\_time}/\T{2};{}$\6
+${}\\{unitp}\MG\\{complete}\K\|F{}$;\C{ flag as not done }\6
+\&{if} ${}(\\{fld}\G\.{DISK8}\W\\{fld}\Z\.{DISK15}){}$\5
+${}\{{}$\C{ disk i/o }\1\6
+${}\\{unitp}\MG\\{clock}\MRL{+{\K}}\\{abs}(\\{xreg}-\\{unitp}\MG\\{position})*%
+\\{unitp}\MG\\{seek\_time};{}$\6
+${}\\{unitp}\MG\\{seek\_pos}\K\\{xreg}{}$;\C{ remember where to seek }\6
+\4${}\}{}$\2\6
+\4${}\}{}$\2\par
+\fi
+
+\N{2}{44}I/O routines.
+\Y\B\4\X44:I/O functions\X${}\E{}$\6
+\&{void} \\{do\_io}(\,)\C{ check if I/O still needs to be done }\6
+${}\{{}$\1\6
+\&{if} ${}(\R\\{unitp}\MG\\{complete}){}$\5
+${}\{{}$\C{ if I/O not done then do it }\1\6
+${}({*}\\{unitp}\MG\\{device})(\,);{}$\6
+${}\\{unitp}\MG\\{complete}\K\|T{}$;\C{ flag as done and set clock }\6
+${}\\{unitp}\MG\\{clock}\K\\{uclock}+\\{unitp}\MG\\{io\_time}/\T{2};{}$\6
+\4${}\}{}$\2\6
+\&{else}\1\5
+${}\\{unitp}\MG\\{clock}\K\T{0};{}$\2\6
+\4${}\}{}$\2\par
+\As45, 46, 47, 48, 49, 50, 51, 52, 53\ETs54.
+\U2.\fi
+
+\M{45}
+\Y\B\4\X44:I/O functions\X${}\mathrel+\E{}$\6
+\&{void} \\{do\_outstanding\_io}(\&{int} \\{time})\1\1\2\2\6
+${}\{{}$\1\6
+\&{int} \|i${},{}$ \\{next}${},{}$ \\{save\_fld};\7
+${}\\{save\_fld}\K\\{fld};{}$\6
+${}\\{next}\K\T{0};{}$\6
+\&{while} ${}(\\{next}\I\\{time}){}$\5
+${}\{{}$\C{ Keep on till no more outstanding i/o }\1\6
+${}\\{next}\K\\{time}{}$;\C{ up until time }\6
+\&{for} ${}(\|i\K\T{0};{}$ ${}\|i<\.{MAXUNITS};{}$ ${}\|i\PP{}$)\C{ Check all
+units. }\1\6
+\&{if} ${}(\\{unit}[\|i].\\{clock}>\T{0}\W\\{unit}[\|i].\\{clock}<\\{next}){}$\5
+${}\{{}$\1\6
+${}\\{next}\K\\{unit}[\|i].\\{clock}{}$;\C{ Find which should complete next. }\6
+${}\\{fld}\K\|i;{}$\6
+\4${}\}{}$\2\2\6
+\&{if} ${}(\\{next}\I\\{time}){}$\5
+${}\{{}$\1\6
+${}\\{unitp}\K{\AND}\\{unit}[\\{fld}];{}$\6
+${}\\{uclock}\K\\{unitp}\MG\\{clock};{}$\6
+\\{do\_io}(\,);\6
+\4${}\}{}$\2\6
+\4${}\}{}$\C{ Keep on till no more outstanding i/o }\2\6
+${}\\{fld}\K\\{save\_fld};{}$\6
+${}\\{unitp}\K{\AND}\\{unit}[\\{fld}];{}$\6
+\4${}\}{}$\2\par
+\fi
+
+\M{46}
+\Y\B\4\X44:I/O functions\X${}\mathrel+\E{}$\6
+\&{int} \\{open\_stream\_unit}(\&{struct} \&{io\_device} ${}{*}\\{unitp},\39{}$%
+\&{char} ${}{*}\\{mode}){}$\1\1\2\2\6
+${}\{{}$\1\6
+\&{if} ${}(\R\\{unitp}\MG\\{fp}){}$\5
+${}\{{}$\1\6
+\&{if} ${}(\\{strcmp}(\\{unitp}\MG\\{path},\39\.{"stdin"})\E\T{0}){}$\1\5
+${}\\{unitp}\MG\\{fp}\K\\{stdin};{}$\2\6
+\&{else} \&{if} ${}(\\{strcmp}(\\{unitp}\MG\\{path},\39\.{"stdout"})\E\T{0}){}$%
+\1\5
+${}\\{unitp}\MG\\{fp}\K\\{stdout};{}$\2\6
+\&{else} \&{if} ${}(\\{strcmp}(\\{unitp}\MG\\{path},\39\.{"stderr"})\E\T{0}){}$%
+\1\5
+${}\\{unitp}\MG\\{fp}\K\\{stderr};{}$\2\6
+\&{else}\5
+${}\{{}$\1\6
+\&{if} ${}(\R(\\{unitp}\MG\\{fp}\K\\{fopen}(\\{unitp}\MG\\{path},\39%
+\\{mode}))){}$\5
+${}\{{}$\1\6
+\&{error} ${}(\T{0},\39\\{errno},\39\.{"open\ failed\ for\ \%s"},\39\\{unitp}%
+\MG\\{path}){}$\1\5
+;\2\6
+\4${}\}{}$\2\6
+\4${}\}{}$\2\6
+\4${}\}{}$\2\6
+\&{return} \\{unitp}${}\MG\\{fp}\E\NULL;{}$\6
+\4${}\}{}$\2\par
+\fi
+
+\M{47}
+\Y\B\4\X44:I/O functions\X${}\mathrel+\E{}$\6
+\&{void} \\{close\_stream\_unit}(\&{struct} \&{io\_device} ${}{*}\\{unitp}){}$%
+\1\1\2\2\6
+${}\{{}$\1\6
+\&{if} ${}(\\{unitp}\MG\\{fp}\W\R(\\{unitp}\MG\\{fp}\E\\{stdin}\V\\{unitp}\MG%
+\\{fp}\E\\{stdout}\V\\{unitp}\MG\\{fp}\E\\{stderr})){}$\5
+${}\{{}$\1\6
+${}\\{fclose}(\\{unitp}\MG\\{fp});{}$\6
+${}\\{unitp}\MG\\{fp}\K\NULL;{}$\6
+\4${}\}{}$\2\6
+\4${}\}{}$\2\par
+\fi
+
+\M{48}
+\Y\B\4\X44:I/O functions\X${}\mathrel+\E{}$\6
+\&{void} \\{stream\_reader}(\&{int} \\{blocksize}${},\39{}$\&{char} ${}{*}%
+\\{buffer},\39{}$\&{int} \\{bufsize})\1\1\2\2\6
+${}\{{}$\1\6
+\&{int} \|i${},{}$ \|j${},{}$ \|l;\6
+\&{char} ${}{*}\|p;{}$\7
+${}\\{fgets}(\\{buffer},\39\\{bufsize},\39\\{unitp}\MG\\{fp});{}$\6
+${}\|l\K\\{strlen}(\\{buffer});{}$\6
+\&{for} ${}(\|i\K\T{0};{}$ ${}\|i<\\{blocksize};{}$ ${}\|i\PP){}$\5
+${}\{{}$\1\6
+${}\\{cell}[\\{unitp}\MG\\{address}]\K\T{0};{}$\6
+\&{for} ${}(\|j\K\T{0};{}$ ${}\|j<\.{BYTESPERWORD};{}$ ${}\|j\PP){}$\1\6
+\&{if} ${}(\|i*\.{BYTESPERWORD}+\|j<\|l\W(\|p\K\\{strchr}(\\{mixalf},\39%
+\\{buffer}[\|i*\.{BYTESPERWORD}+\|j]))){}$\1\5
+${}\\{cell}[\\{unitp}\MG\\{address}]\MRL{{\OR}{\K}}(\|p-\\{mixalf})\LL(%
+\.{BYTESIZE}*(\.{BYTESPERWORD}-(\|j+\T{1})));{}$\2\2\6
+${}\\{unitp}\MG\\{address}\PP;{}$\6
+\4${}\}{}$\2\6
+\4${}\}{}$\2\par
+\fi
+
+\M{49}The card reader is connected to stdin.
+\Y\B\4\X44:I/O functions\X${}\mathrel+\E{}$\6
+\&{void} \\{reader}(\,)\1\1\2\2\6
+${}\{{}$\1\6
+\&{char} ${}\\{buffer}[\T{16}*\.{BYTESPERWORD}+\T{2}];{}$\7
+\&{switch} ${}(\\{unitp}\MG\\{io\_op}){}$\5
+${}\{{}$\1\6
+\4\&{case} \.{IOC}:\5
+\\{close\_stream\_unit}(\\{unitp});\6
+\&{break};\6
+\4\&{case} \.{IN}:\6
+\&{if} ${}(\\{open\_stream\_unit}(\\{unitp},\39\.{"r"})){}$\1\5
+\&{return};\2\6
+${}\\{stream\_reader}(\T{16},\39\\{buffer},\39{}$\&{sizeof} (\\{buffer}));\6
+\&{break};\6
+\4\&{case} \.{OUT}:\5
+\&{break};\6
+\4${}\}{}$\2\6
+\4${}\}{}$\2\par
+\fi
+
+\M{50}
+\Y\B\4\X44:I/O functions\X${}\mathrel+\E{}$\6
+\&{void} \\{tty}(\,)\1\1\2\2\6
+${}\{{}$\1\6
+\&{char} ${}\\{buffer}[\T{14}*\.{BYTESPERWORD}+\T{2}];{}$\7
+\&{switch} ${}(\\{unitp}\MG\\{io\_op}){}$\5
+${}\{{}$\1\6
+\4\&{case} \.{IOC}:\5
+\\{close\_stream\_unit}(\\{unitp});\6
+\&{break};\6
+\4\&{case} \.{IN}:\6
+\&{if} ${}(\\{open\_stream\_unit}(\\{unitp},\39\.{"r"})){}$\1\5
+\&{return};\2\6
+${}\\{stream\_reader}(\T{14},\39\\{buffer},\39{}$\&{sizeof} (\\{buffer}));\6
+\&{break};\6
+\4\&{case} \.{OUT}:\5
+\&{break};\6
+\4${}\}{}$\2\6
+\4${}\}{}$\2\par
+\fi
+
+\M{51}The printer is connect to stdout.
+\Y\B\4\X44:I/O functions\X${}\mathrel+\E{}$\6
+\&{void} \\{printer}(\,)\1\1\2\2\6
+${}\{{}$\1\6
+\&{int} \|i${},{}$ \|j;\7
+\&{if} ${}(\\{open\_stream\_unit}(\\{unitp},\39\.{"a"})){}$\1\5
+\&{return};\2\6
+\&{switch} ${}(\\{unitp}\MG\\{io\_op}){}$\5
+${}\{{}$\1\6
+\4\&{case} \.{IOC}:\5
+${}\\{fprintf}(\\{unitp}\MG\\{fp},\39\.{"\\f"});{}$\6
+\&{break};\6
+\4\&{case} \.{OUT}:\6
+\&{for} ${}(\|i\K\T{0};{}$ ${}\|i<\T{24};{}$ ${}\|i\PP){}$\1\6
+\&{for} ${}(\|j\K\.{BYTESPERWORD}-\T{1};{}$ ${}\|j\G\T{0};{}$ ${}\|j\MM){}$\1\5
+${}\\{putc}(\\{mixalf}[(\\{cell}[\\{unit}[\.{PRINTER}].\\{address}+\|i]\AND%
+\.{ONEBYTE}\LL\.{BYTESIZE}*\|j)\GG\.{BYTESIZE}*\|j],\39\\{unitp}\MG\\{fp});{}$%
+\2\2\6
+${}\\{putc}(\.{'\\n'},\39\\{unitp}\MG\\{fp});{}$\6
+\&{break};\6
+\4${}\}{}$\2\6
+\4${}\}{}$\2\par
+\fi
+
+\M{52}The punch is connected to stderr.
+\Y\B\4\X44:I/O functions\X${}\mathrel+\E{}$\6
+\&{void} \\{punch}(\,)\1\1\2\2\6
+${}\{{}$\1\6
+\&{int} \|i${},{}$ \|j;\7
+${}\\{open\_stream\_unit}(\\{unitp},\39\.{"a"});{}$\6
+\&{for} ${}(\|i\K\T{0};{}$ ${}\|i<\T{15};{}$ ${}\|i\PP){}$\1\6
+\&{for} ${}(\|j\K\.{BYTESPERWORD}-\T{1};{}$ ${}\|j\G\T{0};{}$ ${}\|j\MM){}$\1\5
+${}\\{putc}(\\{mixalf}[(\\{cell}[\\{unit}[\.{PUNCH}].\\{address}+\|i]\AND%
+\.{ONEBYTE}\LL\.{BYTESIZE}*\|j)\GG\.{BYTESIZE}*\|j],\39\\{unitp}\MG\\{fp});{}$%
+\2\2\6
+${}\\{putc}(\.{'\\n'},\39\\{unitp}\MG\\{fp});{}$\6
+\4${}\}{}$\2\par
+\fi
+
+\M{53}The tape units use files tape0 to tape7 in the current directory.
+\Y\B\4\X44:I/O functions\X${}\mathrel+\E{}$\6
+\&{void} \\{tape}(\,)\1\1\2\2\6
+${}\{{}$\1\6
+\&{if} ${}(\R\\{unitp}\MG\\{fd}){}$\5
+${}\{{}$\1\6
+${}\\{unitp}\MG\\{position}\K\\{unitp}\MG\\{tape\_end}\K\T{0};{}$\6
+\&{if} ${}(\\{unitp}\MG\\{io\_op}\E\.{OUT}){}$\5
+${}\{{}$\1\6
+\&{if} ${}((\\{unitp}\MG\\{fd}\K\\{open}(\\{unitp}\MG\\{path},\39\.{O\_RDWR}\OR%
+\.{O\_CREAT}\OR\.{O\_TRUNC},\39\T{\~777}))<\T{0}){}$\1\6
+\&{error} ${}(\T{0},\39\\{errno},\39\.{"write\ open\ failed\ f}\)\.{or\ \%s"},%
+\39\\{unitp}\MG\\{path}){}$\1\5
+;\2\2\6
+\4${}\}{}$\2\6
+\&{else}\5
+${}\{{}$\1\6
+\&{if} ${}(\R\\{unitp}\MG\\{fd}\W(\\{unitp}\MG\\{fd}\K\\{open}(\\{unitp}\MG%
+\\{path},\39\.{O\_RDWR}))<\T{0}){}$\1\6
+\&{error} ${}(\T{0},\39\\{errno},\39\.{"read\ open\ failed\ fo}\)\.{r\ \%s"},%
+\39\\{unitp}\MG\\{path}){}$\1\5
+;\2\2\6
+\4${}\}{}$\2\6
+\4${}\}{}$\2\6
+\&{switch} ${}(\\{unitp}\MG\\{io\_op}){}$\5
+${}\{{}$\1\6
+\4\&{case} \.{OUT}:\6
+\&{if} ${}(\\{write}(\\{unitp}\MG\\{fd},\39{\AND}\\{cell}[\\{unitp}\MG%
+\\{address}],\39\T{400})<\T{0}){}$\1\6
+\&{error} ${}(\T{0},\39\\{errno},\39\.{"write\ failed\ for\ \%s}\)\.{"},\39%
+\\{unitp}\MG\\{path}){}$\1\5
+;\2\2\6
+${}\\{unitp}\MG\\{position}\PP;{}$\6
+${}\\{unitp}\MG\\{tape\_end}\K\\{unitp}\MG\\{position};{}$\6
+\&{break};\6
+\4\&{case} \.{IN}:\6
+\&{if} ${}(\\{read}(\\{unitp}\MG\\{fd},\39{\AND}\\{cell}[\\{unitp}\MG%
+\\{address}],\39\T{400})\Z\T{0}){}$\1\6
+\&{error} ${}(\T{0},\39\\{errno},\39\.{"read\ failed\ for\ \%s"},\39\\{unitp}%
+\MG\\{path}){}$\1\5
+;\2\2\6
+${}\\{unitp}\MG\\{position}\PP;{}$\6
+\&{break};\6
+\4\&{case} \.{IOC}:\6
+\&{if} ${}(\\{unitp}\MG\\{address}\E\T{0}){}$\5
+${}\{{}$\1\6
+${}\\{close}(\\{unitp}\MG\\{fd});{}$\6
+${}\\{unitp}\MG\\{fd}\K\T{0};{}$\6
+${}\\{unitp}\MG\\{position}\K\T{0};{}$\6
+\4${}\}{}$\2\6
+\&{else}\5
+${}\{{}$\1\6
+\&{if} ${}(\\{unitp}\MG\\{position}+\\{unitp}\MG\\{address}<\T{0}){}$\5
+${}\{{}$\1\6
+${}\\{close}(\\{unitp}\MG\\{fd});{}$\6
+${}\\{unitp}\MG\\{position}\K\T{0};{}$\6
+\4${}\}{}$\2\6
+\&{else}\5
+${}\{{}$\1\6
+\&{if} ${}(\\{lseek}(\\{unitp}\MG\\{fd},\39\\{unitp}\MG\\{address}*\T{400},\39%
+\.{SEEK\_CUR})<\T{0}){}$\1\6
+\&{error} ${}(\T{0},\39\\{errno},\39\.{"IOC\ \%d\ on\ tape\ \%d\ f}\)%
+\.{ailed"},\39\\{unitp}\MG\\{address},\39\\{fld}){}$\1\5
+;\2\2\6
+${}\\{unitp}\MG\\{position}\MRL{+{\K}}\\{unitp}\MG\\{address};{}$\6
+\4${}\}{}$\2\6
+\4${}\}{}$\2\6
+\4${}\}{}$\2\6
+\4${}\}{}$\2\par
+\fi
+
+\M{54}The disk units use files disk8 to disk15 in the current directory.
+They are always opened for update without truncating so that old data
+is not destroyed until it is overwritten.
+Note that big disk files will never shrink and the only way to recover
+space is to delete them outside of MIX.
+\Y\B\4\X44:I/O functions\X${}\mathrel+\E{}$\6
+\&{void} \\{disk}(\,)\1\1\2\2\6
+${}\{{}$\1\6
+\&{if} ${}(\R\\{unitp}\MG\\{fd}){}$\5
+${}\{{}$\1\6
+\&{if} ${}((\\{unitp}\MG\\{fd}\K\\{open}(\\{unitp}\MG\\{path},\39\.{O\_RDWR}\OR%
+\.{O\_CREAT},\39\T{\~777}))<\T{0}){}$\1\6
+\&{error} ${}(\T{0},\39\\{errno},\39\.{"open\ failed\ for\ \%s"},\39\\{unitp}%
+\MG\\{path}){}$\1\5
+;\2\2\6
+\4${}\}{}$\2\6
+\&{switch} ${}(\\{unitp}\MG\\{io\_op}){}$\5
+${}\{{}$\1\6
+\4\&{case} \.{IOC}:\5
+${}\\{unitp}\MG\\{position}\K\\{unitp}\MG\\{seek\_pos};{}$\6
+\&{break};\6
+\4\&{case} \.{OUT}:\6
+\&{if} ${}(\\{lseek}(\\{unitp}\MG\\{fd},\39\\{unitp}\MG\\{seek\_pos}*\T{400},%
+\39\.{SEEK\_SET})<\T{0}){}$\1\6
+\&{error} ${}(\T{0},\39\\{errno},\39\.{"seek\ failed\ for\ \%s"},\39\\{unitp}%
+\MG\\{path}){}$\1\5
+;\2\6
+\&{else}\1\5
+${}\\{unitp}\MG\\{position}\K\\{unitp}\MG\\{seek\_pos};{}$\2\2\6
+\&{if} ${}(\\{write}(\\{unitp}\MG\\{fd},\39{\AND}\\{cell}[\\{unitp}\MG%
+\\{address}],\39\T{400})<\T{0}){}$\1\6
+\&{error} ${}(\T{0},\39\\{errno},\39\.{"write\ failed\ for\ \%s}\)\.{"},\39%
+\\{unitp}\MG\\{path}){}$\1\5
+;\2\6
+\&{else}\1\5
+${}\\{unitp}\MG\\{position}\PP;{}$\2\2\6
+\&{break};\6
+\4\&{case} \.{IN}:\6
+\&{if} ${}(\\{lseek}(\\{unitp}\MG\\{fd},\39\\{unitp}\MG\\{seek\_pos}*\T{400},%
+\39\.{SEEK\_SET})<\T{0}){}$\1\6
+\&{error} ${}(\T{0},\39\\{errno},\39\.{"seek\ failed\ for\ \%s"},\39\\{unitp}%
+\MG\\{path}){}$\1\5
+;\2\6
+\&{else}\1\5
+${}\\{unitp}\MG\\{position}\K\\{unitp}\MG\\{seek\_pos};{}$\2\2\6
+\&{if} ${}(\\{read}(\\{unitp}\MG\\{fd},\39{\AND}\\{cell}[\\{unitp}\MG%
+\\{address}],\39\T{400})\Z\T{0}){}$\1\6
+\&{error} ${}(\T{0},\39\\{errno},\39\.{"read\ failed\ for\ \%s"},\39\\{unitp}%
+\MG\\{path}){}$\1\5
+;\2\6
+\&{else}\1\5
+${}\\{unitp}\MG\\{position}\PP;{}$\2\2\6
+\&{break};\6
+\4${}\}{}$\2\6
+\4${}\}{}$\2\par
+\fi
+
+\N{2}{55}Error routines.
+\Y\B\4\X13:Auxiliary Functions\X${}\mathrel+\E{}$\6
+\&{void} \\{indexerror}(\,)\1\1\2\2\6
+${}\{{}$\1\6
+\&{error} ${}(\T{0},\39\T{0},\39\.{"invalid\ index\ regis}\)\.{ter:\ \%d"},\39%
+\\{rI2}){}$\1\5
+;\2\6
+\\{dump}(\,);\6
+\4${}\}{}$\2\par
+\fi
+
+\M{56}
+\Y\B\4\X13:Auxiliary Functions\X${}\mathrel+\E{}$\6
+\&{void} \\{addrerror}(\,)\1\1\2\2\6
+${}\{{}$\1\6
+\&{error} ${}(\T{0},\39\T{0},\39\.{"invalid\ address:\ \%d}\)\.{"},\39%
+\\{mem}){}$\1\5
+;\2\6
+\\{dump}(\,);\6
+\4${}\}{}$\2\par
+\fi
+
+\M{57}
+\Y\B\4\X13:Auxiliary Functions\X${}\mathrel+\E{}$\6
+\&{void} \\{operror}(\,)\1\1\2\2\6
+${}\{{}$\1\6
+\&{error} ${}(\T{0},\39\T{0},\39\.{"invalid\ opcode:\ \%d"},\39\\{op}){}$\1\5
+;\2\6
+\\{dump}(\,);\6
+\4${}\}{}$\2\par
+\fi
+
+\M{58}
+\Y\B\4\X13:Auxiliary Functions\X${}\mathrel+\E{}$\6
+\&{void} \\{memerror}(\,)\1\1\2\2\6
+${}\{{}$\1\6
+\&{error} ${}(\T{0},\39\T{0},\39\.{"invalid\ memory\ loca}\)\.{tion:\ \%d"},\39%
+\\{mem}){}$\1\5
+;\2\6
+\\{dump}(\,);\6
+\4${}\}{}$\2\par
+\fi
+
+\M{59}
+\Y\B\4\X13:Auxiliary Functions\X${}\mathrel+\E{}$\6
+\&{void} \\{fielderror}(\,)\1\1\2\2\6
+${}\{{}$\1\6
+\&{error} ${}(\T{0},\39\T{0},\39\.{"invalid\ field:\ \%d"},\39\\{fld}){}$\1\5
+;\2\6
+\\{dump}(\,);\6
+\4${}\}{}$\2\par
+\fi
+
+\M{60}
+\Y\B\4\X13:Auxiliary Functions\X${}\mathrel+\E{}$\6
+\&{void} \\{sizeerror}(\,)\1\1\2\2\6
+${}\{{}$\1\6
+\&{error} ${}(\T{0},\39\T{0},\39\.{"invalid\ size:\ \%ld"},\39\\{rA}){}$\1\5
+;\2\6
+\\{dump}(\,);\6
+\4${}\}{}$\2\par
+\fi
+
+\N{2}{61}Dump routines.
+\Y\B\4\D$\\{sch}(\|p)$ \5
+$(\\{sign}[\|p]\?\.{'-'}:\.{'+'}{}$)\par
+\fi
+
+\M{62}Dump contents of MIX registers
+\Y\B\4\X62:Diagnostic functions\X${}\E{}$\6
+\&{void} \\{dump\_status}(\,)\1\1\2\2\6
+${}\{{}$\1\6
+\&{char} \|t[\T{4}]${},{}$ \|c[\T{8}];\7
+\&{if} (\\{ovtog})\1\5
+${}\\{strcpy}(\|t,\39\.{"ON"});{}$\2\6
+\&{else}\1\5
+${}\\{strcpy}(\|t,\39\.{"OFF"});{}$\2\6
+\&{if} ${}(\R\\{compi}){}$\1\5
+${}\\{strcpy}(\|c,\39\.{"EQUAL"});{}$\2\6
+\&{else} \&{if} ${}(\\{compi}>\T{0}){}$\1\5
+${}\\{strcpy}(\|c,\39\.{"GREATER"});{}$\2\6
+\&{else}\1\5
+${}\\{strcpy}(\|c,\39\.{"LESS"});{}$\2\6
+${}\\{fprintf}(\\{stderr},\39\.{"Registers\ A/X\ \ \ \ \%c}\)\.{0\%010lo\ \%c0%
+\%010lo\\n"},\39\\{sch}(\T{0}),\39\\{reg}[\T{0}],\39\\{sch}(\T{7}),\39\\{reg}[%
+\T{7}]);{}$\6
+${}\\{fprintf}(\\{stderr},\39\.{"\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \%c}\)\.{\ %
+\%10ld\ \%c\ \%10ld\\n\\n"},\39\\{sch}(\T{0}),\39\\{reg}[\T{0}],\39\\{sch}(%
+\T{7}),\39\\{reg}[\T{7}]);{}$\6
+${}\\{fprintf}(\\{stderr},\39\.{"Index\ Registers\ \ \%c}\)\.{0\%04lo\ \ \%c0%
+\%04lo\ \ \%c}\)\.{0\%04lo\ \ \%c0\%04lo\ \ \%c}\)\.{0\%04lo\ \ \%c0\%04lo\ %
+\\n"},\39\\{sch}(\T{1}),\39\\{reg}[\T{1}],\39\\{sch}(\T{2}),\39\\{reg}[\T{2}],%
+\39\\{sch}(\T{3}),\39\\{reg}[\T{3}],\39\\{sch}(\T{4}),\39\\{reg}[\T{4}],\39%
+\\{sch}(\T{5}),\39\\{reg}[\T{5}],\39\\{sch}(\T{6}),\39\\{reg}[\T{6}]);{}$\6
+${}\\{fprintf}(\\{stderr},\39\.{"\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \%c}\)\.{\ %
+\%4ld\ \ \%c\ \%4ld\ \ \%c\ \%}\)\.{4ld\ \ \%c\ \%4ld\ \ \%c\ \%4l}\)\.{d\ \ %
+\%c\ \%4ld\ \\n\\n"},\39\\{sch}(\T{1}),\39\\{reg}[\T{1}],\39\\{sch}(\T{2}),\39%
+\\{reg}[\T{2}],\39\\{sch}(\T{3}),\39\\{reg}[\T{3}],\39\\{sch}(\T{4}),\39%
+\\{reg}[\T{4}],\39\\{sch}(\T{5}),\39\\{reg}[\T{5}],\39\\{sch}(\T{6}),\39%
+\\{reg}[\T{6}]);{}$\6
+${}\\{fprintf}(\\{stderr},\39\.{"Jump\ Register\ \ \ \ \%c}\)\.{0\%04lo\ \ \ \ %
+\ Overflow\ }\)\.{toggle:\ \ \ \ \ \ \%s\\n"},\39\\{sch}(\T{8}),\39\\{reg}[%
+\T{8}],\39\|t);{}$\6
+${}\\{fprintf}(\\{stderr},\39\.{"\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \%c}\)\.{\ %
+\%4ld\ \ \ \ \ Comparison}\)\.{\ Indicator:\ \%s\\n\\n"},\39\\{sch}(\T{8}),\39%
+\\{reg}[\T{8}],\39\|c);{}$\6
+${}\\{fprintf}(\\{stderr},\39\.{"Clock\ =\ \%"}\.{PRI\_MIX\_CLOCK}\.{"\ u.\ "}%
+\.{"Location\ =\ \%04d,\ M\ }\)\.{\%d,\ I\ \%ld,\ F\ \%d,\ C\ \%}\)\.{d,\ inst\
+=\ \%c\ \%010lo\ }\)\.{\\n\\n"},\39\\{uclock},\39\\{loc},\39\\{mem},\39%
+\.{INDEX}(\\{inst}),\39\\{fld},\39\\{op},\39\.{SIGN}(\\{inst})\?\.{'-'}:%
+\.{'+'},\39\.{MAG}(\\{inst}));{}$\6
+\4${}\}{}$\2\par
+\As64, 65, 86\ETs87.
+\U2.\fi
+
+\M{63}
+\Y\B\4\X10:Global variables\X${}\mathrel+\E{}$\6
+\&{int} \\{wpn}${}\K\T{5}{}$;\C{ Number of decoded machine words per line of
+dump output }\par
+\fi
+
+\M{64}Dump contents of the memory starting from the location \PB{\\{from}} to
+location
+\PB{\\{to}}. Both locations are rounded to the nearest \PB{\\{wpn}} boundary.
+\Y\B\4\X62:Diagnostic functions\X${}\mathrel+\E{}$\6
+\&{void} \\{dump\_memory}(\&{int} \\{from}${},\39{}$\&{int} \\{to})\1\1\2\2\6
+${}\{{}$\1\6
+\&{char} ${}\\{buff}[\T{2}][\T{132}*\T{2}];{}$\6
+\&{char} ${}\\{cbuff}[\T{132}*\T{2}];{}$\6
+\&{char} ${}\\{albuff}[\T{132}*\T{2}];{}$\6
+\&{char} \\{tbuff}[\T{64}];\6
+\&{int} \|a${},{}$ \|i${},{}$ \|j${},{}$ \|k${},{}$ \\{flag};\6
+\&{char} ${}{*}\|p;{}$\6
+\&{int} \|b;\7
+${}\\{from}\K(\\{from}/\\{wpn})*\\{wpn};{}$\6
+${}\\{to}\K((\\{to}+\\{wpn}-\T{1})/\\{wpn})*\\{wpn};{}$\6
+\&{if} ${}(\\{to}>\.{MEMSIZE}){}$\1\5
+${}\\{to}\K\.{MEMSIZE};{}$\2\6
+${}\|k\K\T{0};{}$\6
+${}\\{flag}\K\T{0};{}$\6
+${}\|a\K\T{0};{}$\6
+\&{for} ${}(\|i\K\\{from};{}$ ${}\|i<\\{to};{}$ ${}\|i\MRL{+{\K}}\\{wpn}){}$\5
+${}\{{}$\1\6
+${}\|k\K(\|k+\T{1})\MOD\T{2};{}$\6
+${}\\{sprintf}(\\{buff}[\|k],\39\.{"\%04d\ "},\39\|i);{}$\6
+\&{for} ${}(\|j\K\T{0};{}$ ${}\|j<\\{wpn};{}$ ${}\|j\PP){}$\5
+${}\{{}$\1\6
+${}\\{sprintf}(\\{buff}[\|k]+\T{5}+\|j*\T{15},\39\.{"\%c\%013ld\ "},\39%
+\.{SIGN}(\\{cell}[\|i+\|j])\?\.{'-'}:\.{'+'},\39\.{MAG}(\\{cell}[\|i+\|j]));{}$%
+\6
+\4${}\}{}$\2\6
+\&{if} ${}(\\{strcmp}(\\{buff}[\T{0}]+\T{5},\39\\{buff}[\T{1}]+\T{5})){}$\5
+${}\{{}$\1\6
+\&{if} (\\{flag})\5
+${}\{{}$\1\6
+\&{if} ${}(\|a-\|i+\\{wpn}){}$\1\5
+${}\\{fprintf}(\\{stderr},\39\.{"\ \ \ \ Lines\ \%04d\ to\ \%}\)\.{04d\ are\
+the\ same.\\n"},\39\|a,\39\|i-\\{wpn});{}$\2\6
+\4${}\}{}$\2\6
+${}\\{flag}\K\T{0};{}$\6
+\&{for} ${}(\|j\K\T{0};{}$ ${}\|j<\\{wpn};{}$ ${}\|j\PP){}$\5
+${}\{{}$\1\6
+${}\\{sprintf}(\\{cbuff}+\|j*\T{15},\39\.{"\%c\%04ld\ \%02ld\ \%02ld}\)\.{\ %
+\%02ld\ "},\39\.{SIGN}(\\{cell}[\|i+\|j])\?\.{'-'}:\.{'+'},\39\.{ADDRESS}(%
+\\{cell}[\|i+\|j]),\39\.{INDEX}(\\{cell}[\|i+\|j]),\39\.{FIELD}(\\{cell}[\|i+%
+\|j]),\39\.{CODE}(\\{cell}[\|i+\|j]));{}$\6
+${}\|p\K\\{tbuff};{}$\6
+${}{*}\|p\PP\K\.{'\\''};{}$\6
+\&{for} ${}(\|b\K\.{BYTESPERWORD}-\T{1};{}$ ${}\|b\G\T{0};{}$ ${}\|b\MM){}$\1\5
+${}{*}\|p\PP\K\\{mixalf}[(\\{cell}[\|i+\|j]\AND\.{ONEBYTE}\LL\.{BYTESIZE}*\|b)%
+\GG\.{BYTESIZE}*\|b];{}$\2\6
+${}{*}\|p\PP\K\.{'\\''};{}$\6
+${}{*}\|p\K\T{0};{}$\6
+${}\\{sprintf}(\\{albuff}+\|j*\T{15},\39\.{"\%-15.15s"},\39\\{tbuff});{}$\6
+\4${}\}{}$\2\6
+${}\\{fprintf}(\\{stderr},\39\.{"\%s\\n"},\39\\{buff}[\|k]);{}$\6
+${}\\{fprintf}(\\{stderr},\39\.{"\%5.5s\%s\\n"},\39\.{""},\39\\{cbuff});{}$\6
+${}\\{fprintf}(\\{stderr},\39\.{"\%5.5s\%s\\n"},\39\.{""},\39\\{albuff});{}$\6
+\4${}\}{}$\2\6
+\&{else}\5
+${}\{{}$\1\6
+\&{if} ${}(\R\\{flag}){}$\1\5
+${}\|a\K\|i;{}$\2\6
+${}\\{flag}\K\T{1};{}$\6
+\4${}\}{}$\2\6
+\4${}\}{}$\2\6
+\&{if} (\\{flag})\5
+${}\{{}$\1\6
+\&{if} ${}(\|a-\|i+\\{wpn}){}$\1\5
+${}\\{fprintf}(\\{stderr},\39\.{"\ \ \ \ Lines\ \%04d\ to\ \%}\)\.{04d\ are\
+the\ same.\\n"},\39\|a,\39\|i-\\{wpn});{}$\2\6
+\4${}\}{}$\2\6
+\4${}\}{}$\2\par
+\fi
+
+\M{65}Dump the entire status of \.{MIX} machine. Exit immediately, unless in
+{\tt terminal mode} (i.e. \PB{\\{termmode}} is set).
+\Y\B\4\X62:Diagnostic functions\X${}\mathrel+\E{}$\6
+\&{void} \\{dump}(\,)\1\1\2\2\6
+${}\{{}$\1\6
+\\{dump\_status}(\,);\6
+${}\\{dump\_memory}(\T{0},\39\.{MEMSIZE});{}$\6
+\&{if} ${}(\R\\{termmode}){}$\1\5
+${}\\{exit}({-}\T{1});{}$\2\6
+\4${}\}{}$\2\par
+\fi
+
+\M{66}\.{GO} button
+\Y\B\4\X66:Interface functions\X${}\E{}$\6
+\&{void} \\{go}(\,)\1\1\2\2\6
+${}\{{}$\1\6
+${}\\{unit}[\.{READER}].\\{address}\K\T{0};{}$\6
+${}\\{unitp}\K{\AND}\\{unit}[\.{READER}];{}$\6
+${}\\{unitp}\MG\\{io\_op}\K\.{IOC};{}$\6
+\\{reader}(\,);\6
+${}\\{uclock}\MRL{+{\K}}\\{unitp}\MG\\{io\_time};{}$\6
+${}\\{unitp}\MG\\{io\_op}\K\.{IN};{}$\6
+\\{reader}(\,);\6
+${}\\{loc}\K\T{0}{}$;\C{ Take first instruction from location zero. }\6
+${}\\{lastbreak}\K{-}\T{1};{}$\6
+\\{run}(\,);\6
+\4${}\}{}$\2\par
+\As67, 71\ETs88.
+\U2.\fi
+
+\M{67}If the \.{UNIX} file \PB{\\{name}} is accessible, bind it to \.{MIX}
+device 16 and
+return 0. Othervise, return -1.
+\Y\B\4\X66:Interface functions\X${}\mathrel+\E{}$\6
+\&{int} \\{source\_deck}(\&{char} ${}{*}\\{name}){}$\1\1\2\2\6
+${}\{{}$\1\6
+\&{FILE} ${}{*}\\{infile};{}$\7
+\&{if} (\\{name})\5
+${}\{{}$\1\6
+${}\\{infile}\K\\{fopen}(\\{name},\39\.{"r"});{}$\6
+\&{if} ${}(\R\\{infile}){}$\5
+${}\{{}$\1\6
+\&{error} ${}(\T{0},\39\\{errno},\39\.{"can't\ load\ card\ dec}\)\.{k\ \%s"},%
+\39\\{name}){}$\1\5
+;\2\6
+\&{return} ${}{-}\T{1};{}$\6
+\4${}\}{}$\2\6
+\\{fclose}(\\{infile});\6
+${}\\{asgn\_io}(\T{16},\39\\{name});{}$\6
+\4${}\}{}$\2\6
+\&{return} \T{0};\6
+\4${}\}{}$\2\par
+\fi
+
+\M{68}Default signal handler for {\tt terminal mode}.
+\Y\B\4\X13:Auxiliary Functions\X${}\mathrel+\E{}$\6
+\.{RETSIGTYPE}\\{sig\_int}(\&{int} \\{sig})\1\1\2\2\6
+${}\{{}$\1\6
+\&{if} (\\{termmode})\5
+${}\{{}$\1\6
+${}\\{interrupted}\K\T{1};{}$\6
+${}\\{signal}(\\{sig},\39\\{sig\_int});{}$\6
+\4${}\}{}$\2\6
+\&{else}\1\5
+\\{dump}(\,);\2\6
+\4${}\}{}$\2\par
+\fi
+
+\M{69}Not used currently.
+\Y\B\4\X13:Auxiliary Functions\X${}\mathrel+\E{}$\6
+\&{void} \\{init}(\,)\1\1\2\2\6
+${}\{{}$\1\6
+${}\\{memset}(\\{cell},\39\T{0},\39{}$\&{sizeof} (\\{cell}));\6
+${}\\{memset}(\\{reg},\39\T{0},\39{}$\&{sizeof} (\\{reg}));\6
+${}\\{memset}(\\{sign},\39\T{0},\39{}$\&{sizeof} (\\{sign}));\6
+${}\\{compi}\K\.{EQUAL};{}$\6
+${}\\{ovtog}\K\.{OFF};{}$\6
+${}\\{uclock}\K\T{0};{}$\6
+${}\\{instime}\K\T{0};{}$\6
+${}\\{rA}\K\\{rX}\K\\{rI1}\K\\{rI2};{}$\6
+\4${}\}{}$\2\par
+\fi
+
+\M{70}Not used currently
+\Y\B\4\X13:Auxiliary Functions\X${}\mathrel+\E{}$\6
+\&{void} \\{done}(\,)\1\1\2\2\6
+${}\{{}$\1\6
+\\{fclose}(\\{infile});\6
+${}\\{infile}\K\T{0};{}$\6
+\4${}\}{}$\2\par
+\fi
+
+\M{71}Run \.{MIX} instructions until \PB{\\{halt}} gets raised.
+\Y\B\4\X66:Interface functions\X${}\mathrel+\E{}$\6
+\&{void} \\{run}(\,)\1\1\2\2\6
+${}\{{}$\1\6
+${}\\{running}\K\T{1};{}$\6
+${}\\{halt}\K\T{0};{}$\6
+\&{while} ${}(\R\\{halt}\W\\{loc}<\.{MEMSIZE}){}$\5
+${}\{{}$\1\6
+\&{if} (\\{bp\_hit}(\\{loc}))\5
+${}\{{}$\1\6
+\&{if} ${}(\\{lastbreak}\E\\{loc}){}$\5
+${}\{{}$\1\6
+${}\\{lastbreak}\K\T{0};{}$\6
+\4${}\}{}$\2\6
+\&{else}\5
+${}\{{}$\1\6
+${}\\{lastbreak}\K\\{loc};{}$\6
+${}\\{disas}(\\{stdout},\39\\{loc},\39\\{loc}+\T{1});{}$\6
+${}\\{stepflag}\K\T{0};{}$\6
+\&{return};\6
+\4${}\}{}$\2\6
+\4${}\}{}$\2\6
+\&{else} \&{if} (\\{interrupted})\5
+${}\{{}$\1\6
+${}\\{interrupted}\K\T{0};{}$\6
+${}\\{printf}(\.{"interrupted\ at\ \%d\\n}\)\.{"},\39\\{loc});{}$\6
+\&{return};\6
+\4${}\}{}$\2\6
+${}\\{uclock}\MRL{+{\K}}\\{instime};{}$\6
+\&{for} ${}(\\{fld}\K\T{0};{}$ ${}\\{fld}<\.{MAXUNITS};{}$ ${}\\{fld}\PP){}$\5
+${}\{{}$\C{ Check each unit. }\1\6
+${}\\{unitp}\K{\AND}\\{unit}[\\{fld}];{}$\6
+\&{if} ${}(\\{unitp}\MG\\{clock}>\T{0}\W\\{unitp}\MG\\{clock}\Z\\{uclock}){}$\5
+${}\{{}$\1\6
+\\{do\_io}(\,);\6
+\4${}\}{}$\2\6
+\4${}\}{}$\2\6
+${}\\{inst}\K\\{cell}[\\{loc}];{}$\6
+${}\\{loc}\PP;{}$\6
+\&{if} ${}(\\{loc}\G\.{MEMSIZE}){}$\1\5
+\\{addrerror}(\,);\2\6
+${}\\{mem}\K\.{ADDRESS}(\\{inst});{}$\6
+\&{if} (\.{SIGN}(\\{inst}))\1\5
+${}\\{mem}\K{-}\\{mem};{}$\2\6
+${}\\{rI2}\K\.{INDEX}(\\{inst});{}$\6
+\&{if} (\\{rI2})\5
+${}\{{}$\1\6
+\&{if} ${}(\\{rI2}>\T{6}){}$\1\5
+\\{indexerror}(\,);\2\6
+${}\\{mem}\MRL{+{\K}}\\{sign}[\\{rI2}]\?{-}\\{reg}[\\{rI2}]:\\{reg}[%
+\\{rI2}];{}$\6
+\&{if} ${}(\\{abs}(\\{mem})>\.{TWOBYTES}){}$\1\5
+\\{addrerror}(\,);\2\6
+\4${}\}{}$\2\6
+${}\\{fld}\K\.{FIELD}(\\{inst});{}$\6
+${}\\{op}\K\.{CODE}(\\{inst});{}$\6
+\&{if} ${}(\\{op}\G\T{64}){}$\1\5
+\\{operror}(\\{op});\2\6
+${}\\{instime}\K\\{optable}[\\{op}].\\{time};{}$\6
+${}\\{unitp}\K{\AND}\\{unit}[\\{fld}];{}$\6
+${}({*}\\{optable}[\\{op}].\\{fn})(\,);{}$\6
+\&{if} (\\{stepflag})\5
+${}\{{}$\1\6
+${}\\{disas}(\\{stdout},\39\\{loc},\39\\{loc}+\T{1});{}$\6
+\&{if} ${}(\MM\\{stepflag}\E\T{0}){}$\1\5
+\&{return};\2\6
+\4${}\}{}$\2\6
+\4${}\}{}$\2\6
+${}\\{running}\K\T{0};{}$\6
+\4${}\}{}$\2\par
+\fi
+
+\N{2}{72}Debugging support.
+
+\fi
+
+\M{73}Set breakpoint after the current location. If \PB{\\{step\_in}} is set,
+step into
+called functions.
+\Y\B\4\X73:Debugging support\X${}\E{}$\6
+\&{void} \\{set\_next}(\&{unsigned} \\{count}${},\39{}$\&{int} \\{step\_in})\1%
+\1\2\2\6
+${}\{{}$\1\6
+\&{int} \\{opcode};\6
+\&{int} \\{br\_loc}${}\K\\{loc}+\\{count}-\T{1};{}$\6
+\&{int} \|c${},{}$ \|f${},{}$ \\{cc}${},{}$ \|a;\6
+\8\#\&{define} \\{isproccall}(\|c) \5${}(\.{CODE}(\\{cell}[\|c])\E\T{39}\W%
+\.{FIELD}(\\{cell}[\|c])\E\T{0}\W\.{CODE}(\\{cell}[\.{ADDRESS}(\\{cell}[\|c])])%
+\E\T{32}){}$\7
+${}\\{opcode}\K\.{CODE}(\\{cell}[\\{br\_loc}]);{}$\6
+${}\|c\K\.{CODE}(\\{cell}[\\{br\_loc}]);{}$\6
+${}\|f\K\.{FIELD}(\\{cell}[\\{br\_loc}]);{}$\6
+${}\|a\K\.{ADDRESS}(\\{cell}[\\{br\_loc}]);{}$\6
+${}\\{cc}\K\.{CODE}(\.{ADDRESS}(\\{cell}[\\{br\_loc}]));{}$\6
+\&{if} ${}(\R\\{step\_in}\W\\{isproccall}(\\{br\_loc})){}$\5
+${}\{{}$\C{ opcode == JMP }\1\6
+${}\\{br\_loc}\PP;{}$\6
+\&{if} ${}(\\{br\_loc}\G\.{MEMSIZE}){}$\5
+${}\{{}$\1\6
+\\{printf}(\.{"CAN'T\ SET\ BREAKPOIN}\)\.{T\\n"});\6
+\&{return};\6
+\4${}\}{}$\2\6
+${}\\{bpoint}[\T{0}].\\{flags}\K\.{BP\_SET}\OR\.{BP\_ACTIVE};{}$\6
+${}\\{bpoint}[\T{0}].\\{addr}\K\\{br\_loc};{}$\6
+${}\\{bpoint}[\T{0}].\\{ignore}\K\T{0};{}$\6
+${}\\{bpoint}[\T{0}].\\{delete\_after}\K\T{1};{}$\6
+${}\\{bpoint}[\T{0}].\\{next}\K\\{bpind}[\\{br\_loc}];{}$\6
+${}\\{bpind}[\\{br\_loc}]\K\T{0};{}$\6
+\4${}\}{}$\2\6
+\&{else}\1\5
+${}\\{stepflag}\K\\{count};{}$\2\6
+\4${}\}{}$\2\par
+\As74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84\ETs85.
+\U2.\fi
+
+\M{74}Find next unallocated breakpoint and return its number.
+\Y\B\4\X73:Debugging support\X${}\mathrel+\E{}$\6
+\&{int} \\{bp\_allocate}(\,)\1\1\2\2\6
+${}\{{}$\1\6
+\&{int} \|i;\7
+\&{for} ${}(\|i\K\T{1};{}$ ${}\|i<{}$\&{sizeof} (\\{bpoint})${}/{}$\&{sizeof} (%
+\\{bpoint}[\T{0}]); ${}\|i\PP){}$\1\6
+\&{if} ${}(\R\.{BP\_IS\_SET}(\|i)){}$\5
+${}\{{}$\1\6
+${}\\{memset}(\\{bpoint}+\|i,\39\T{0},\39{}$\&{sizeof} (\\{bpoint}[\T{0}]));\6
+${}\\{bpoint}[\|i].\\{flags}\K\.{BP\_SET};{}$\6
+\&{return} \|i;\6
+\4${}\}{}$\2\2\6
+\&{return} \T{0};\6
+\4${}\}{}$\2\par
+\fi
+
+\M{75}Set breakpoint at address \PB{\\{addr}}. \PB{\\{count}} specifies number
+of crossings
+after which the breakpoint is deleted. -1 means forever.
+\Y\B\4\X73:Debugging support\X${}\mathrel+\E{}$\6
+\&{void} \\{bp\_set}(\&{int} \\{addr}${},\39{}$\&{int} \\{count})\1\1\2\2\6
+${}\{{}$\1\6
+\&{int} \|i;\7
+\&{if} ${}(\\{loc}<\T{0}\V\\{loc}\G\.{MEMSIZE}){}$\5
+${}\{{}$\1\6
+\\{printf}(\.{"LOCATION\ OUT\ OF\ ADD}\)\.{RESS\ SPACE\\n"});\6
+\&{return};\6
+\4${}\}{}$\2\6
+${}\|i\K\\{bp\_allocate}(\,);{}$\6
+\&{if} ${}(\|i\E\T{0}){}$\5
+${}\{{}$\1\6
+\\{printf}(\.{"OUT\ OF\ BREAKPOINT\ S}\)\.{PACE\\n"});\6
+\&{return};\6
+\4${}\}{}$\2\6
+${}\\{bpoint}[\|i].\\{addr}\K\\{addr};{}$\6
+${}\\{bpoint}[\|i].\\{flags}\MRL{{\OR}{\K}}\.{BP\_ACTIVE};{}$\6
+${}\\{bpoint}[\|i].\\{delete\_after}\K\\{count};{}$\6
+${}\\{bpoint}[\|i].\\{next}\K\\{bpind}[\\{addr}];{}$\6
+${}\\{bpind}[\\{addr}]\K\|i;{}$\6
+${}\\{printf}(\.{"BREAKPOINT\ \%d\ IS\ SE}\)\.{T\ AT\ ADDRESS\ \%d\\n"},\39\|i,%
+\39\\{addr});{}$\6
+\&{while} ${}(\|i\K\\{bpoint}[\|i].\\{next}){}$\5
+${}\{{}$\1\6
+\&{if} (\.{BP\_IS\_ACTIVE}(\|i))\1\5
+${}\\{printf}(\.{"WARNING:\ BREAKPOINT}\)\.{\ \%d\ IS\ ALSO\ SET\ AT\ A}\)%
+\.{DDRESS\ \%d\\n"},\39\|i,\39\\{addr});{}$\2\6
+\&{else}\1\5
+${}\\{printf}(\.{"WARNING:\ BREAKPOINT}\)\.{\ \%d\ (DISABLED)\ IS\ AL}\)\.{SO\
+SET\ AT\ ADDRESS\ \%d}\)\.{\\n"},\39\|i,\39\\{addr});{}$\2\6
+\4${}\}{}$\2\6
+\4${}\}{}$\2\par
+\fi
+
+\M{76}Verify if \PB{\|n} refers to a valid breakpoint. Return 0 if so, 1
+otherwise.
+\Y\B\4\X73:Debugging support\X${}\mathrel+\E{}$\6
+\&{static} \&{int} \\{bp\_verify}(\&{int} \|n)\1\1\2\2\6
+${}\{{}$\1\6
+\&{if} ${}(\|n<\T{0}\V\|n\G\.{MEMSIZE}){}$\5
+${}\{{}$\1\6
+\\{printf}(\.{"NUMBER\ OUT\ OF\ BREAK}\)\.{POINT\ SPACE\\n"});\6
+\&{return} \T{1};\6
+\4${}\}{}$\2\6
+\&{if} ${}(\R\.{BP\_IS\_SET}(\|n)){}$\5
+${}\{{}$\1\6
+${}\\{printf}(\.{"BREAKPOINT\ \%d\ IS\ NO}\)\.{T\ SET\\n"},\39\|n);{}$\6
+\&{return} \T{1};\6
+\4${}\}{}$\2\6
+\&{return} \T{0};\6
+\4${}\}{}$\2\par
+\fi
+
+\M{77}Return number of the first breakpoint set on address \PB{\\{addr}}.
+\Y\B\4\X73:Debugging support\X${}\mathrel+\E{}$\6
+\&{int} \\{bp\_first}(\&{int} \\{addr})\1\1\2\2\6
+${}\{{}$\1\6
+\&{if} ${}(\\{addr}<\T{0}\V\\{addr}\G\.{MEMSIZE}){}$\5
+${}\{{}$\1\6
+\\{printf}(\.{"LOCATION\ OUT\ OF\ ADD}\)\.{RESS\ SPACE\\n"});\6
+\&{return} \T{0};\6
+\4${}\}{}$\2\6
+\&{return} \\{bpind}[\\{addr}];\6
+\4${}\}{}$\2\par
+\fi
+
+\M{78}Return number of the next breakpoint set on the same address as
+the breakpoint number \PB{\\{cur}}.
+\Y\B\4\X73:Debugging support\X${}\mathrel+\E{}$\6
+\&{int} \\{bp\_next}(\&{int} \\{cur})\1\1\2\2\6
+${}\{{}$\1\6
+\&{if} ${}(\\{cur}<\T{1}\V\\{cur}\G\.{MEMSIZE}+\T{1}){}$\5
+${}\{{}$\1\6
+\\{printf}(\.{"LOCATION\ OUT\ OF\ ADD}\)\.{RESS\ SPACE\\n"});\6
+\&{return} \T{0};\6
+\4${}\}{}$\2\6
+\&{return} \\{bpoint}[\\{cur}]${}.\\{next};{}$\6
+\4${}\}{}$\2\par
+\fi
+
+\M{79}Clear breakpoint number \PB{\|n}
+
+\Y\B\4\X73:Debugging support\X${}\mathrel+\E{}$\6
+\&{void} \\{bp\_delete}(\&{int} \|n)\1\1\2\2\6
+${}\{{}$\1\6
+\&{int} \|i;\7
+\&{if} ${}(\|n\E{-}\T{1}){}$\5
+${}\{{}$\C{ Delete all breakpoints }\1\6
+${}\\{memset}(\\{bpoint},\39\T{0},\39{}$\&{sizeof} \\{bpoint});\6
+${}\\{memset}(\\{bpind},\39\T{0},\39{}$\&{sizeof} \\{bpind});\6
+\&{return};\6
+\4${}\}{}$\2\6
+\&{if} (\\{bp\_verify}(\|n))\1\5
+\&{return};\2\6
+${}\|i\K\\{bpind}[\\{bpoint}[\|n].\\{addr}];{}$\6
+\&{if} ${}(\|i\E\|n){}$\1\5
+${}\\{bpind}[\\{bpoint}[\|n].\\{addr}]\K\\{bpoint}[\|n].\\{next};{}$\2\6
+\&{else}\5
+${}\{{}$\1\6
+\&{for} ( ; \|i; ${}\|i\K\\{bpoint}[\|i].\\{next}){}$\5
+${}\{{}$\1\6
+\&{if} ${}(\\{bpoint}[\|i].\\{next}\E\|n){}$\5
+${}\{{}$\1\6
+${}\\{bpoint}[\|i].\\{next}\K\\{bpoint}[\|n].\\{next};{}$\6
+\&{break};\6
+\4${}\}{}$\2\6
+\4${}\}{}$\2\6
+\4${}\}{}$\2\6
+${}\\{bpoint}[\|n].\\{flags}\K\T{0};{}$\6
+\4${}\}{}$\2\par
+\fi
+
+\M{80}Change the status of breakpoint \PB{\|n} to \PB{\\{status}}.
+
+\Y\B\4\X73:Debugging support\X${}\mathrel+\E{}$\6
+\&{void} \\{bp\_enable}(\&{int} \|n${},\39{}$\&{int} \\{status})\1\1\2\2\6
+${}\{{}$\1\6
+\&{if} ${}(\|n\E{-}\T{1}){}$\5
+${}\{{}$\1\6
+\&{for} ${}(\|n\K\T{0};{}$ ${}\|n<{}$\&{sizeof} (\\{bpoint})${}/{}$\&{sizeof} (%
+\\{bpoint}[\T{0}]); ${}\|n\PP){}$\1\6
+\&{if} (\.{BP\_IS\_SET}(\|n))\1\5
+${}\\{bp\_enable}(\|n,\39\\{status});{}$\2\2\6
+\&{return};\6
+\4${}\}{}$\2\6
+\&{if} (\\{bp\_verify}(\|n))\1\5
+\&{return};\2\6
+\&{if} (\\{status})\1\5
+${}\\{bpoint}[\|n].\\{flags}\MRL{{\OR}{\K}}\.{BP\_ACTIVE};{}$\2\6
+\&{else}\1\5
+${}\\{bpoint}[\|n].\\{flags}\MRL{\AND{\K}}\CM\.{BP\_ACTIVE};{}$\2\6
+\4${}\}{}$\2\par
+\fi
+
+\M{81}Set ignore count for breakpoint \PB{\|n}.
+\Y\B\4\X73:Debugging support\X${}\mathrel+\E{}$\6
+\&{void} \\{bp\_set\_ignore}(\&{int} \|n${},\39{}$\&{unsigned} \\{count})\1\1\2%
+\2\6
+${}\{{}$\1\6
+\&{if} (\\{bp\_verify}(\|n))\1\5
+\&{return};\2\6
+${}\\{bpoint}[\|n].\\{ignore}\K\\{count};{}$\6
+\4${}\}{}$\2\par
+\fi
+
+\M{82}Set maximum crossings count for breakpoint \PB{\|n}.
+\Y\B\4\X73:Debugging support\X${}\mathrel+\E{}$\6
+\&{void} \\{bp\_set\_max\_crossings}(\&{int} \|n${},\39{}$\&{unsigned} %
+\\{count})\1\1\2\2\6
+${}\{{}$\1\6
+\&{if} (\\{bp\_verify}(\|n))\1\5
+\&{return};\2\6
+${}\\{bpoint}[\|n].\\{delete\_after}\K\\{count};{}$\6
+\4${}\}{}$\2\par
+\fi
+
+\M{83}Print breakpoint \PB{\|n}. If \PB{\|n} is -1, print the breakpoint
+listing header
+instead.
+
+\Y\B\4\X73:Debugging support\X${}\mathrel+\E{}$\6
+\&{void} \\{print\_breakpoint}(\&{int} \|n)\1\1\2\2\6
+${}\{{}$\1\6
+\&{if} ${}(\|n\E{-}\T{1}){}$\1\5
+${}\\{printf}(\.{"\%4s\ \%4s\ \%4s\ \%4s\ \%4s}\)\.{\ \%4s\\n"},\39\.{"NUM"},%
+\39\.{"LOC"},\39\.{"ENB"},\39\.{"CNT"},\39\.{"IGN"},\39\.{"PAS"});{}$\2\6
+\&{else}\1\5
+${}\\{printf}(\.{"\%4d\ \%4d\ \%4s\ \%4u\ \%4u}\)\.{\ \%4u\\n"},\39\|n,\39%
+\\{bpoint}[\|n].\\{addr},\39\.{BP\_IS\_ACTIVE}(\|n)\?\.{"Y"}:\.{"N"},\39%
+\\{bpoint}[\|n].\\{count},\39\\{bpoint}[\|n].\\{ignore},\39\\{bpoint}[\|n].%
+\\{delete\_after});{}$\2\6
+\4${}\}{}$\2\par
+\fi
+
+\M{84}List all breakpoints.
+\Y\B\4\X73:Debugging support\X${}\mathrel+\E{}$\6
+\&{void} \\{list\_bp}(\&{int} \|n${},\39{}$\&{int} \\{isloc})\1\1\2\2\6
+${}\{{}$\1\6
+\&{if} ${}(\|n\E{-}\T{1}){}$\5
+${}\{{}$\1\6
+${}\\{print\_breakpoint}({-}\T{1});{}$\6
+\&{for} ${}(\|n\K\T{1};{}$ ${}\|n<{}$\&{sizeof} (\\{bpoint})${}/{}$\&{sizeof} (%
+\\{bpoint}[\T{0}]); ${}\|n\PP){}$\5
+${}\{{}$\1\6
+\&{if} (\.{BP\_IS\_SET}(\|n))\1\5
+\\{print\_breakpoint}(\|n);\2\6
+\4${}\}{}$\2\6
+\4${}\}{}$\2\6
+\&{else} \&{if} (\\{isloc})\5
+${}\{{}$\1\6
+${}\|n\K\\{bp\_first}(\|n);{}$\6
+\&{if} (\|n)\5
+${}\{{}$\1\6
+${}\\{print\_breakpoint}({-}\T{1});{}$\6
+\&{do}\5
+\\{print\_breakpoint}(\|n);\5
+\&{while} ${}(\|n\K\\{bp\_next}(\|n));{}$\6
+\4${}\}{}$\2\6
+\4${}\}{}$\2\6
+\&{else} \&{if} ${}(\\{bp\_verify}(\|n)\E\T{0}){}$\5
+${}\{{}$\1\6
+${}\\{print\_breakpoint}({-}\T{1});{}$\6
+\\{print\_breakpoint}(\|n);\6
+\4${}\}{}$\2\6
+\4${}\}{}$\2\par
+\fi
+
+\M{85}Examine all breakpoints set at address \PB{\\{loc}}, and return 1 if any
+of
+them is hit.
+\Y\B\4\X73:Debugging support\X${}\mathrel+\E{}$\6
+\&{int} \\{bp\_hit}(\&{int} \\{addr})\1\1\2\2\6
+${}\{{}$\1\6
+\&{int} \|n;\6
+\&{int} \\{rc}${}\K\T{0};{}$\7
+\&{for} ${}(\|n\K\\{bpind}[\\{addr}];{}$ \|n; ${}\|n\K\\{bpoint}[\|n].%
+\\{next}){}$\5
+${}\{{}$\1\6
+\&{if} (\.{BP\_IS\_SET}(\|n))\5
+${}\{{}$\1\6
+${}\\{bpoint}[\|n].\\{count}\PP;{}$\6
+\&{if} ${}(\R\.{BP\_IS\_ACTIVE}(\|n)){}$\1\5
+\&{continue};\2\6
+\&{if} ${}(\\{bpoint}[\|n].\\{ignore}){}$\5
+${}\{{}$\1\6
+${}\MM\\{bpoint}[\|n].\\{ignore};{}$\6
+\&{continue};\6
+\4${}\}{}$\2\6
+${}\\{printf}(\.{"BREAKPOINT\ \%d\\n"},\39\|n);{}$\6
+${}\\{rc}\K\T{1};{}$\6
+\&{if} ${}(\\{bpoint}[\|n].\\{delete\_after}\W\MM\\{bpoint}[\|n].\\{delete%
+\_after}\E\T{0}){}$\1\5
+\\{bp\_delete}(\|n);\2\6
+\4${}\}{}$\2\6
+\4${}\}{}$\2\6
+\&{return} \\{rc};\6
+\4${}\}{}$\2\par
+\fi
+
+\M{86}Display the status of \.{MIX} I/O device \PB{\\{dev}}.
+\Y\B\4\X62:Diagnostic functions\X${}\mathrel+\E{}$\6
+\&{void} \\{show\_io}(\&{int} \\{dev})\1\1\2\2\6
+${}\{{}$\1\6
+\&{struct} \&{io\_device} ${}{*}\\{dp}\K{\AND}\\{unit}[\\{dev}];{}$\7
+${}\\{printf}(\.{"\%4d\ \ \%5d\ \ \%5d\ \ \%4d\ }\)\.{\%4d\ \ \%3s\ \ \%10"}%
+\.{PRI\_MIX\_CLOCK}\.{"\ \%s\\n"},\39\\{dev},\39\\{dp}\MG\\{io\_time},\39\\{dp}%
+\MG\\{seek\_time},\39\\{dp}\MG\\{address},\39\\{dp}\MG\\{position},\39\\{dp}\MG%
+\\{complete}\?\.{"N/A"}:\\{mix\_opname}(\\{dp}\MG\\{io\_op},\39\T{0}),\39\\{dp}%
+\MG\\{clock},\39\\{dp}\MG\\{path});{}$\6
+\4${}\}{}$\2\par
+\fi
+
+\M{87}List the status of \.{MIX} device \PB{\\{dev}}. If \PB{$\\{dev}\E{-}%
+\T{1}$} list all available
+devices.
+\Y\B\4\X62:Diagnostic functions\X${}\mathrel+\E{}$\6
+\&{void} \\{list\_io}(\&{int} \\{dev})\1\1\2\2\6
+${}\{{}$\1\6
+\&{if} ${}(\\{dev}\G\.{MAXUNITS}){}$\5
+${}\{{}$\1\6
+\\{printf}(\.{"INVALID\ UNIT\ NUMBER}\)\.{\\n"});\6
+\&{return};\6
+\4${}\}{}$\2\6
+\\{printf}(\.{"UNIT\ \ \ \ IOT\ \ \ \ SKT\ }\)\.{\ ADDR\ \ POS\ \ \ OP\ \ \ \ \
+}\)\.{\ \ CLOCK\ ASGN\\n"});\6
+\&{if} ${}(\\{dev}\E{-}\T{1}){}$\5
+${}\{{}$\1\6
+\&{for} ${}(\\{dev}\K\T{0};{}$ ${}\\{dev}<\.{MAXUNITS};{}$ ${}\\{dev}\PP){}$\1\5
+\\{show\_io}(\\{dev});\2\6
+\4${}\}{}$\2\6
+\&{else}\1\5
+\\{show\_io}(\\{dev});\2\6
+\4${}\}{}$\2\par
+\fi
+
+\M{88}Assign (bind) \.{UNIX} file \PB{\\{path}} to \.{MIX} device \PB{\\{dev}}
+\Y\B\4\X66:Interface functions\X${}\mathrel+\E{}$\6
+\&{void} \\{asgn\_io}(\&{int} \\{dev}${},\39{}$\&{char} ${}{*}\\{path}){}$\1\1%
+\2\2\6
+${}\{{}$\1\6
+\&{struct} \&{io\_device} ${}{*}\\{dp};{}$\7
+\&{if} ${}(\\{dev}<\T{0}\V\\{dev}\G\.{MAXUNITS}){}$\5
+${}\{{}$\1\6
+\\{printf}(\.{"INVALID\ UNIT\ NUMBER}\)\.{\\n"});\6
+\&{return};\6
+\4${}\}{}$\2\6
+\&{if} ${}(\\{strlen}(\\{path})>\.{PATH\_MAX}){}$\5
+${}\{{}$\1\6
+\\{printf}(\.{"PATHNAME\ TOO\ LONG\\n}\)\.{"});\6
+\&{return};\6
+\4${}\}{}$\2\6
+${}\\{dp}\K{\AND}\\{unit}[\\{dev}];{}$\6
+\&{if} ${}(\\{dev}<\T{16}){}$\5
+${}\{{}$\1\6
+\&{if} ${}(\\{dp}\MG\\{fd}>\T{0}){}$\5
+${}\{{}$\1\6
+${}\\{close}(\\{dp}\MG\\{fd});{}$\6
+${}\\{dp}\MG\\{fd}\K\T{0};{}$\6
+\4${}\}{}$\2\6
+\4${}\}{}$\2\6
+\&{else}\5
+${}\{{}$\1\6
+\\{close\_stream\_unit}(\\{dp});\6
+\4${}\}{}$\2\6
+${}\\{strcpy}(\\{dp}\MG\\{path},\39\\{path});{}$\6
+\4${}\}{}$\2\par
+\fi
+
+\N{2}{89}Disassembler functions.
+\fi
+
+\M{90}
+\Y\B\4\X90:Disassembler support\X${}\E{}$\6
+\&{const} \&{char} ${}{*}{}$\\{mix\_opname}(\&{int} \|c${},\39{}$\&{int} \|f)\1%
+\1\2\2\6
+${}\{{}$\1\6
+\&{int} \|i;\7
+\&{if} ${}(\|c\Z\T{63}){}$\5
+${}\{{}$\1\6
+\&{if} ${}(\\{dd\_cnt}[\|c]\E\T{1}){}$\1\5
+${}\|i\K\\{dd\_ent}[\|c];{}$\2\6
+\&{else} \&{if} ${}(\|f<\\{dd\_cnt}[\|c]){}$\1\5
+${}\|i\K\\{dd\_ent}[\|c]+\|f;{}$\2\6
+\&{return} \\{mix\_optab}[\|i]${}.\\{name};{}$\6
+\4${}\}{}$\2\6
+\&{return} \.{"??"};\6
+\4${}\}{}$\2\par
+\As91\ET92.
+\U2.\fi
+
+\M{91}
+\Y\B\4\X90:Disassembler support\X${}\mathrel+\E{}$\6
+\&{char} ${}{*}{}$\\{sprintop}(\&{char} ${}{*}\\{buf},\39{}$\&{int} \\{loc})\1%
+\1\2\2\6
+${}\{{}$\1\6
+\&{int} \|c${},{}$ \|f${},{}$ \|i${},{}$ \\{addr}${},{}$ \\{ind};\6
+\&{char} ${}{*}\|p\K\\{buf};{}$\7
+${}\|c\K\.{CODE}(\\{cell}[\\{loc}]);{}$\6
+${}\|f\K\.{FIELD}(\\{cell}[\\{loc}]);{}$\6
+${}\\{addr}\K\.{ADDRESS}(\\{cell}[\\{loc}]);{}$\6
+\&{if} (\.{SIGN}(\\{cell}[\\{loc}]))\1\5
+${}\\{addr}\K{-}\\{addr};{}$\2\6
+${}\|i\K\.{INDEX}(\\{cell}[\\{loc}]);{}$\6
+\&{if} ${}(\|c\Z\T{63}){}$\5
+${}\{{}$\1\6
+\&{if} ${}(\\{dd\_cnt}[\|c]\E\T{1}){}$\1\5
+${}\\{ind}\K\\{dd\_ent}[\|c];{}$\2\6
+\&{else} \&{if} ${}(\|f<\\{dd\_cnt}[\|c]){}$\1\5
+${}\\{ind}\K\\{dd\_ent}[\|c]+\|f;{}$\2\6
+\&{else}\1\5
+\&{goto} \\{badop};\2\6
+${}\|p\MRL{+{\K}}\\{sprintf}(\|p,\39\.{"\%s\ "},\39\\{mix\_optab}[\\{ind}].%
+\\{name});{}$\6
+\&{if} ${}(\\{addr}\E\\{loc}){}$\1\5
+${}\|p\MRL{+{\K}}\\{sprintf}(\|p+\T{14},\39\.{"*"});{}$\2\6
+\&{else}\1\5
+${}\|p\MRL{+{\K}}\\{sprintf}(\|p,\39\.{"\%d"},\39\\{addr});{}$\2\6
+\&{if} ${}(\|i\I\T{0}){}$\1\5
+${}\|p\MRL{+{\K}}\\{sprintf}(\|p,\39\.{",\%d"},\39\|i);{}$\2\6
+\&{if} ${}(\|f\I\\{mix\_optab}[\\{ind}].\|f){}$\5
+${}\{{}$\1\6
+\&{if} ${}(\\{mix\_optab}[\\{ind}].\\{notation}\E\T{0}){}$\1\5
+${}\|p\MRL{+{\K}}\\{sprintf}(\|p,\39\.{"(\%d)"},\39\|f);{}$\2\6
+\&{else}\1\5
+${}\|p\MRL{+{\K}}\\{sprintf}(\|p,\39\.{"(\%d:\%d)"},\39\|f/\T{8},\39\|f\MOD%
+\T{8});{}$\2\6
+\4${}\}{}$\2\6
+\4${}\}{}$\2\6
+\&{else}\5
+${}\{{}$\1\6
+\4\\{badop}:\5
+${}\\{sprintf}(\|p,\39\.{"\%c\%04ld\ \%02ld\ \%02ld}\)\.{\ \%02ld"},\39%
+\.{SIGN}(\\{cell}[\\{loc}])\?\.{'-'}:\.{'+'},\39\.{ADDRESS}(\\{cell}[\\{loc}]),%
+\39\.{INDEX}(\\{cell}[\\{loc}]),\39\.{FIELD}(\\{cell}[\\{loc}]),\39\.{CODE}(%
+\\{cell}[\\{loc}]));{}$\6
+\4${}\}{}$\2\6
+\&{return} \\{buf};\6
+\4${}\}{}$\2\par
+\fi
+
+\M{92}Disassemble memory range from \PB{\\{loc}} to \PB{\\{stop\_loc}}. Output
+disassembled code
+to file \PB{\\{fp}}.
+\Y\B\4\X90:Disassembler support\X${}\mathrel+\E{}$\6
+\&{void} \\{disas}(\&{FILE} ${}{*}\\{fp},\39{}$\&{int} \\{loc}${},\39{}$\&{int}
+\\{stop\_loc})\1\1\2\2\6
+${}\{{}$\1\6
+\&{int} \|c${},{}$ \|f${},{}$ \|i${},{}$ \\{addr}${},{}$ \\{ind};\7
+\&{for} ( ; ${}\\{loc}<\\{stop\_loc};{}$ ${}\\{loc}\PP){}$\5
+${}\{{}$\1\6
+${}\|c\K\.{CODE}(\\{cell}[\\{loc}]);{}$\6
+${}\|f\K\.{FIELD}(\\{cell}[\\{loc}]);{}$\6
+${}\\{addr}\K\.{ADDRESS}(\\{cell}[\\{loc}]);{}$\6
+\&{if} (\.{SIGN}(\\{cell}[\\{loc}]))\1\5
+${}\\{addr}\K{-}\\{addr};{}$\2\6
+${}\|i\K\.{INDEX}(\\{cell}[\\{loc}]);{}$\6
+\&{if} ${}(\|c\Z\T{63}){}$\5
+${}\{{}$\1\6
+\&{if} ${}(\\{dd\_cnt}[\|c]\E\T{1}){}$\1\5
+${}\\{ind}\K\\{dd\_ent}[\|c];{}$\2\6
+\&{else} \&{if} ${}(\|f<\\{dd\_cnt}[\|c]){}$\1\5
+${}\\{ind}\K\\{dd\_ent}[\|c]+\|f;{}$\2\6
+\&{else}\1\5
+\&{goto} \\{badop};\2\6
+${}\\{fprintf}(\\{fp},\39\.{"\%-8d\%-6.6s"},\39\\{loc},\39\\{mix\_optab}[%
+\\{ind}].\\{name});{}$\6
+\&{if} ${}(\\{addr}\E\\{loc}\W\\{mix\_optab}[\\{ind}].\\{name}[\T{0}]\E%
+\.{'J'}){}$\1\5
+${}\\{fprintf}(\\{fp},\39\.{"*"});{}$\2\6
+\&{else}\1\5
+${}\\{fprintf}(\\{fp},\39\.{"\%d"},\39\\{addr});{}$\2\6
+\&{if} ${}(\|i\I\T{0}){}$\1\5
+${}\\{fprintf}(\\{fp},\39\.{",\%d"},\39\|i);{}$\2\6
+\&{if} ${}(\|f\I\\{mix\_optab}[\\{ind}].\|f){}$\5
+${}\{{}$\1\6
+\&{if} ${}(\\{mix\_optab}[\\{ind}].\\{notation}\E\T{0}){}$\1\5
+${}\\{fprintf}(\\{fp},\39\.{"(\%d)"},\39\|f);{}$\2\6
+\&{else}\1\5
+${}\\{fprintf}(\\{fp},\39\.{"(\%d:\%d)"},\39\|f/\T{8},\39\|f\MOD\T{8});{}$\2\6
+\4${}\}{}$\2\6
+${}\\{fprintf}(\\{fp},\39\.{"\\n"});{}$\6
+\4${}\}{}$\2\6
+\&{else}\5
+${}\{{}$\1\6
+\4\\{badop}:\5
+${}\\{fprintf}(\\{fp},\39\.{"\%c\%04ld\ \%02ld\ \%02ld}\)\.{\ \%02ld"},\39%
+\.{SIGN}(\\{cell}[\\{loc}])\?\.{'-'}:\.{'+'},\39\.{ADDRESS}(\\{cell}[\\{loc}]),%
+\39\.{INDEX}(\\{cell}[\\{loc}]),\39\.{FIELD}(\\{cell}[\\{loc}]),\39\.{CODE}(%
+\\{cell}[\\{loc}]));{}$\6
+\4${}\}{}$\2\6
+\4${}\}{}$\2\6
+\4${}\}{}$\2\par
+\fi
+
+\M{93}
+\Y\B\4\X13:Auxiliary Functions\X${}\mathrel+\E{}$\6
+\&{void} \\{usage}(\,)\1\1\2\2\6
+${}\{{}$\1\6
+\\{printf}(\.{"usage:\ mixsim\ [OPTI}\)\.{ONS]\ [DECK-FILE]\\n"});\6
+\\{printf}(\.{"MIX\ simulator\ and\ t}\)\.{erminal\\n"});\6
+\\{printf}(\.{"\\n"});\6
+\\{printf}(\.{"OPTIONS\ are:\\n"});\6
+\\{printf}(\.{"\ \ -a,\ --assign-devi}\)\.{ce\ DEV=NAME\ \ assign\ }\)\.{file\
+NAME\ to\ MIX\ dev}\)\.{ice\ \#DEV\\n"});\6
+\\{printf}(\.{"\ \ -t,\ --terminal\ \ \ }\)\.{\ \ \ \ \ \ \ \ \ \ \ \ \ run\ in%
+\ }\)\.{terminal\ mode\\n"});\6
+\\{printf}(\.{"\\n"});\6
+\\{printf}(\.{"Informative\ options}\)\.{:\\n"});\6
+\\{printf}(\.{"\ \ -h,\ --help\ \ \ \ \ \ \ }\)\.{\ \ \ \ \ \ \ \ \ \ \ \ \
+print\ t}\)\.{his\ help\ summary\\n"});\6
+\\{printf}(\.{"\ \ -V,\ --version\ \ \ \ }\)\.{\ \ \ \ \ \ \ \ \ \ \ \ \ print\
+p}\)\.{rogram\ version\ and\ l}\)\.{icense\ info\\n"});\6
+\\{printf}(\.{"\\n"});\6
+${}\\{printf}(\.{"Report\ bugs\ to\ <\%s>}\)\.{\\n"},\39\.{PACKAGE%
+\_BUGREPORT});{}$\6
+\4${}\}{}$\2\par
+\fi
+
+\M{94}Declare long options
+\Y\B\4\X13:Auxiliary Functions\X${}\mathrel+\E{}$\6
+\&{struct} \\{option} \\{options}[\,]${}\K\{\{\.{"assign-device"},\39%
+\\{required\_argument},\39\NULL,\39\.{'a'}\},\39\{\.{"terminal"},\39\\{no%
+\_argument},\39\NULL,\39\.{'t'}\},\39\{\.{"help"},\39\\{no\_argument},\39\NULL,%
+\39\.{'h'}\},\39\{\.{"version"},\39\\{no\_argument},\39\NULL,\39\.{'V'}\},\39\{%
+\NULL\}\}{}$;\par
+\fi
+
+\M{95}
+\Y\B\4\X95:The main program\X${}\E{}$\6
+\&{int} \\{main}(\&{int} \\{argc}${},\39{}$\&{char} ${}{*}\\{argv}[\,]){}$\1\1%
+\2\2\6
+${}\{{}$\1\6
+\&{int} \|i${},{}$ \|n;\6
+\&{char} ${}{*}\|p;{}$\7
+\\{set\_program\_name}(\\{argv}[\T{0}]);\6
+\&{while} ${}((\|i\K\\{getopt\_long}(\\{argc},\39\\{argv},\39\.{"a:htV"},\39%
+\\{options},\39\NULL))\I\.{EOF}){}$\5
+${}\{{}$\1\6
+\&{switch} (\|i)\5
+${}\{{}$\1\6
+\4\&{case} \.{'a'}:\5
+${}\|n\K\\{strtol}(\\{optarg},\39{\AND}\|p,\39\T{10});{}$\6
+\&{if} ${}({*}\|p\I\.{'='}){}$\1\6
+\&{error} ${}(\T{1},\39\T{0},\39\.{"device\ assignment\ s}\)\.{yntax\ error\
+(near\ \%s}\)\.{)"},\39\|p){}$\1\5
+;\2\2\6
+\&{if} ${}(\|n<\T{0}\V\|n\G\.{MAXUNITS}){}$\1\6
+\&{error} ${}(\T{1},\39\T{0},\39\.{"invalid\ unit\ number}\)\.{"}){}$\1\5
+;\2\2\6
+${}\\{asgn\_io}(\|n,\39\|p+\T{1});{}$\6
+\&{break};\6
+\4\&{case} \.{'t'}:\5
+${}\\{termmode}\PP;{}$\6
+\&{break};\6
+\4\&{case} \.{'V'}:\5
+\\{mix\_version}(\\{program\_name});\6
+\\{exit}(\T{0});\6
+\4\&{case} \.{'h'}:\5
+\\{usage}(\,);\6
+\\{exit}(\T{0});\6
+\4\&{default}:\5
+\\{exit}(\T{1});\6
+\4${}\}{}$\2\6
+\4${}\}{}$\2\6
+${}\\{signal}(\.{SIGINT},\39\\{sig\_int});{}$\6
+\&{if} ${}(\\{argv}[\\{optind}]\W\\{source\_deck}(\\{argv}[\\{optind}])){}$\1\5
+\\{exit}(\T{1});\2\6
+\&{if} ${}(\\{argc}-\\{optind}>\T{1}){}$\1\6
+\&{error} ${}(\T{0},\39\T{0},\39\.{"excess\ arguments\ ig}\)\.{nored"}){}$\1\5
+;\2\2\6
+\&{if} (\\{termmode})\1\5
+\\{mixterm}(\,);\2\6
+\&{else}\1\5
+\\{go}(\,);\2\6
+\&{return} \T{0};\6
+\4${}\}{}$\2\par
+
+\U2.\fi
+
+
+\inx
+\fin
+\con

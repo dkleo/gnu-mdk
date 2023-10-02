@@ -1,0 +1,276 @@
+* Introduction
+
+This is a modified version of Douglas Laing mix package. The original
+version is available from http://home.telkomsa.net/dlaing/.
+
+Please see COPYING for information about copying conditions.
+
+The file NEWS contains a list of user-visible changes to the original
+package.
+
+* Installation
+
+The file INSTALL contains generic build instructions. In short, run
+
+ $ ./configure
+ $ make
+ $ make install
+
+So far, there is only one package-specific configuration option: 
+--without-readline.  Use it if you wish to disable readline support in 
+MIX terminal.
+
+* The Assembler  -  mixal
+
+Mixal reads MIXAL source code from the file named as an argument (or
+from stdin if no filename is given) and assembles it. If assembly
+succeeds, mixal ewrites the output load deck to stdout. The load deck
+consists of a two card loading routine followed by instruction cards
+and a transfer card. (See TAOCP 1.3.1 exercise 26.) Any error messages
+generated are written to stderr.
+
+Mixal exits with zero exit code if assembly succeeded, otherwise its
+exit code is 1. 
+
+Mixal accepts several command line options that alter its
+behavior. The option --list (-l) causes the assembled instructions to be
+written to a file. The file name is obtained by replacing the input
+file suffix with .lst, e.g. listing file for program `easter.mix' will
+be named `easter.lst'. If the source file name does not have any
+suffix, `.lst' is appended to it. Otherwise, if the source is taken from
+the standard input, the listing file is named `mixal.lst'
+
+The listing file ends with a dump of the symbol table used during
+assembly.
+
+The option --xref (-x) instructs mixal to produce a cross-reference
+listing of the assembled program. If --list is also given, this listing
+is included into the last part of the listing file. Otherwise, it is
+output to stderr.
+
+The option --raw-output (-r) instructs mixal to output the `raw code',
+i.e. to not convert it to usual MIX card format and to not output the
+usual card loading routine and transfer card. This option is useful
+for writing card loaders.
+
+The option --force (-f) forces mixal to produce output files (card
+deck and listing file, if required) even if there were errors during
+the assembly.
+
+The options --debug-gram and --debug-lex enable debugging output for
+the parser and lexical analyzer, correspondingly. The option -d,
+provided for backward compatibility with the version 1.2, allows
+to set both debugging features at once. It accepts an argument
+consisting of at most two letters. The letter `y' enables tracing of
+input file grammar analyzer, while the letter `l' (ell) enables
+tracing of input file lexical analyzer. Thus, the full debugging
+output can be obtained by running `mixal -d yl'.
+
+There are also two informational options:  --version (-V) which
+reports the version number and --help (-h) which displays a short
+usage summary. 
+
+* The simulator -  mixsim
+
+When run without command line options, mixsim reads a load deck from
+sysin, loads and executes it, writing any error messages to stderr. On
+completion a dump of the machine state is written to stderr. If mixsim
+is interrupted during execution, the machine state will be dumped to
+stderr.
+
+By default the card reader is connected to sysin, the printer to
+sysout and the card punch to stderr. The tape units use files tape0 to
+tape7 and the disk units use files disk8 to disk15 in the current
+directory.
+
+These defaults can be altered by giving the --assign-device (-a)
+command line option. The option takes a single argument in the form
+
+  DEV=NAME
+
+Its effect is to bind MIX device #DEV to UNIX file NAME (or, assign
+the UNIX file NAME to MIX device #DEV, hence the option name
+`--assign-device')
+
+The disks are always opened for update without truncation, so that old
+data is not destroyed until it is overwritten. Note that big disk
+files will never shrink unless they are deleted.
+
+The machine is shipped without a papertape unit and without the
+floating point feature.
+
+* The terminal and the debugger
+
+When run with the --terminal (-t) command line option, mixsim starts
+up in MIX terminal mode. This mode provides a set of commands for
+running and debugging MIX programs. The commands are case-insensitive,
+each command has a full and contracted form. Furthermore, if MIX is
+compiled with readline support, any unambiguous abbreviation of the
+command name is also allowed.
+
+As a shortcut, hitting newline in terminal mode repeats the recent
+command.
+
+The list of available terminal commands is given below. For the sake
+of consistency the commands are given in upper case. The full form is
+given after two *'s, the contracted form is listed on the next line.
+
+** ADDRESS
+   AD
+
+This command takes as its argument a breakpoint manipulation command
+(see DELETE, IGNORE, ENABLE, DISABLE, PASSCOUNT below) with arguments
+appropriate for the associated command.  However, the first argument
+of the corresponding command is treated as MIX address, instead of a
+breakpoint number.
+
+** ASGN <DEV> <FILE>
+   A <DEV> <FILE>
+
+Assign or bind a file to MIX device. For example, the command:
+
+   ASGN 16 easter.mix
+
+binds MIX card reader (device 16) to the UNIX file `easter.mix'. 
+
+** BREAK <ADDR>
+   B <ADDR>
+
+Set breakpoint on address <ADDR>
+
+** BREAK TEMP <ADDR>
+   BT <ADDR>
+   TB <ADDR>
+
+Set a temporary breakpoint on address <ADDR>. Such a breakpoint is
+deleted after the first crossing.
+
+This command is equivalent to:
+
+BREAK <ADDR>
+PASSCOUNT <N> 1
+
+** CLEAR <N>
+   CB <N>
+   DELETE <N>
+
+Delete the breakpoint #<N>.
+See also ADDRESS.
+
+* CONT
+  CO
+
+Continue after encountering a breakpoint.
+
+** DISABLE <N>
+
+Disable breakpoint #<N>.
+See also ENABLE and ADDRESS.
+
+** DISASSEMBLE [<BEG> [<END>]]
+
+See UNASM below
+
+** DUMP
+   DU
+
+Dump entire MIX machine state
+
+** DUMP REGISTERS
+   DR
+
+Dump MIX registers
+
+** DUMP MEMORY [<BEG> [<END>]]
+   DM [<BEG> [<END>]]
+
+Dump the contents of MIX memory. If no arguments are given, the entire
+memory range (0-4000) is printed. Otherwise, <BEG> and optional <END>
+specify start and end addresses of the memory range to dump.
+
+** ENABLE <N>
+
+Enable breakpoint #<N>.
+See also DISABLE and ADDRESS.
+
+** IGNORE <N> <COUNT>
+
+Ignore next <COUNT> crossings of breakpoint #<N>.
+See also ADDRESS.
+
+** GO
+   G
+
+Emulates GO button. Typing GO starts execution of the current program.
+
+** LIST BREAK
+   LB
+
+List all breakpoints
+
+* LIST IO [<DEV>]
+  LI [<DEV>]
+
+List MIX I/O devices and their states.
+
+When given an argument, the command will display the status of the
+given device.
+
+** PASSCOUNT <N> <COUNT>
+
+Delete (clear) breakpoint <N> after <COUNT> crossings.
+See also ADDRESS.
+
+** NEXT
+   N
+
+Execute the next MIX instruction.
+
+** RUN
+   R
+
+Same as GO.   
+
+** STEP
+   S
+
+Execute the next MIX instruction. If it is a function call, step into
+the function being called.
+
+** UNASM [<BEG> [<END>]]
+   U [<BEG> [<END>]]
+
+Disassemble the given memory range. <BEG> and <END> have the same
+meaning as for DU.
+
+* QUIT
+  Q
+
+Quit the terminal. Typing ^D (end-of-file symbol) has the same effect.
+
+* Debugging tips.
+
+1. The usual terminal session starts with a command
+
+ASGN 16 <DECK>
+
+(where <DECK> is the name of UNIX file containing MIX card deck).
+
+2. Set the breakpoints using BREAK command.
+
+3. Finally, run GO
+
+4. Upon encountering a breakpoint, the terminal stops and displays the
+instruction to be executed next. Do whatever it is necessary to do
+(e.g. examine the memory or registers, set new breakpoints or clear
+old ones, etc) and type CONT to resume execution of the program.
+
+5. You may restart the program after any breakpoint by typing GO again.
+
+6. To exit the terminal, type end-of-file (Ctrl-D) or QUIT.
+
+
+Local variables:
+mode: outline
+paragraph-separate: "[ 	]*$"
+end:

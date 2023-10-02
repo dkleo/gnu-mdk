@@ -1,0 +1,88 @@
+\input cwebmac
+% This file is part of MIX
+% Copyright (C) 1998, 1999, 2000 Douglas Laing
+% Copyright (C) 2000, 2005, 2007 Sergey Poznyakoff
+%
+% This program is free software; you can redistribute it and/or
+% modify it under the terms of the GNU General Public License as
+% published by the Free Software Foundation; either version 3, or (at
+% your option) any later version.
+%
+% This program is distributed in the hope that it will be useful, but
+% WITHOUT ANY WARRANTY; without even the implied warranty of
+% MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+% General Public License for more details.
+%
+% You should have received a copy of the GNU General Public License
+% along with this program.  If not, see <http://www.gnu.org/licenses/>.
+%
+
+\N{1}{1}Common definitions for MIX assembler and simulator.
+
+The purpose is to simulate TAOCP MIX machine with 64 distinct
+values per byte, 5 bytes per machine word and with address space
+of 4000 words.
+
+Internally, each byte will be represented by 6 bits, with a value
+range of \PB{\T{\~00}} to \PB{\T{\~77}}. Sign is represented by a single bit, %
+\PB{\T{0}} for
+plus or \PB{\T{1}} for minus in the first position of the real word.
+
+A word will then occupy 4 actual 8-bit hardware bytes of the real machine
+and leave one bit (the second bit of the real word) over for possible
+future use.
+
+\Y\B\4\D$\.{MEMSIZE}$ \5
+\T{4000}\par
+\B\4\D$\.{BYTESIZE}$ \5
+\T{6}\par
+\B\4\D$\.{BYTESPERWORD}$ \5
+\T{5}\par
+\B\4\D$\.{B1}$ \5
+$(\T{1}\LL\.{BYTESIZE}{}$)\par
+\B\4\D$\.{B2}$ \5
+$\.{B1}*{}$\.{B1}\par
+\B\4\D$\.{B3}$ \5
+$\.{B2}*{}$\.{B1}\par
+\B\4\D$\.{B5}$ \5
+$\.{B2}*{}$\.{B3}\par
+\B\4\D$\.{MINUS}$ \5
+((\&{unsigned}) \T{2}${}*\.{B5}{}$)\par
+\B\4\D$\.{PLUS}$ \5
+\T{0}\par
+\B\4\D$\.{SIGN}(\|a)$ \5
+$(\|a\AND(\.{MINUS}){}$)\C{ sign of word }\par
+\B\4\D$\.{MAG}(\|a)$ \5
+$(\|a\AND(\.{B5}-\T{1}){}$)\C{ magnitude of word }\par
+\B\4\D$\|T$ \5
+\T{1}\C{ True value }\par
+\B\4\D$\|F$ \5
+\T{0}\C{ False value }\par
+\fi
+
+\M{2}\PB{\&{struct} \\{mixop}} keeps data for a single MIX instruction. It is
+used
+by assembler (\PB{\\{mixal}}) to generate machine code and by terminal
+emulator (\PB{$\\{mixsim}-\|t$}) to disassemble instructions.
+
+\Y\B\&{struct} \&{mix\_op} ${}\{{}$\1\6
+\&{char} ${}{*}\\{name}{}$;\C{ \PB{\.{OP}}: Option mnemonic name }\6
+\&{int} \|f;\C{ \PB{(\|F)}: Default field notation }\6
+\&{int} \|c;\C{ \PB{\|C}: Opcode }\6
+\&{int} \\{notation};\C{ Field notation: 0 - (n), 1 - (l:r) }\2\6
+${}\}{}$;\par
+\fi
+
+\M{3}External data provided by the automatically generated file optab.c
+\Y\B\&{extern} \&{struct} \&{mix\_op} \\{mix\_optab}[\,];\C{ Array of available
+\.{MIX} instructions }\6
+\&{extern} \&{int} \\{op\_count};\C{ Number of entries in \PB{\\{mix\_optab}} }%
+\6
+\&{extern} \&{int} \\{dd\_cnt}[\,];\C{ Number of bytes in instruction. }\6
+\&{extern} \&{int} \\{dd\_ent}[\,];\C{ Index to \PB{\\{mix\_optab}} }\6
+\&{extern} \&{char} \\{mixalf}[\,];\C{ \.{MIX} character set }\par
+\fi
+
+\inx
+\fin
+\con

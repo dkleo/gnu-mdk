@@ -1,0 +1,118 @@
+MIX NEWS -- history of user-visible changes. 2007-09-23
+Copyright (C) 1998,1999,2000,2005,2007 Douglas Laing, Sergey Poznyakoff
+
+See the end of file for copying conditions.
+
+Please send bug reports to <gray@gnu.org.ua>.
+
+
+Version 2.0, 2007-09-23
+
+* Licensed under GPLv3 or later.
+
+* mixal
+
+** Location of listing file
+
+By default, mixal creates listing file in the current working directory.
+
+* mixsim
+
+** The .mixsim file
+When started in terminal mode, the utility searches for file `.mixsim'
+in the current working directory and reads it, if present. The file
+may contain any mixsim commands.
+
+** The set of terminal commands is improved to make it compatible with GDB.
+
+** New command, PASSCOUNT
+Set the number of crossings after whcih to clear the breakpoint.
+
+** Removed optional second argument to BREAK.
+The functionality of `BREAK <ADDR> <COUNT>' is now obtained by two
+commands:
+
+BREAK <ADDR>
+PASSCOUNT <N> <COUNT>
+
+** New command DELETE.
+An alias to CLEAR.
+
+** New command IGNORE
+Sets the number of hits to ignore before enabling the breakpoint.
+
+** New commands ENABLE and DISABLE
+Enable or disable the breakpoint with the given number.
+
+** New command RUN
+It is an alias for GO.
+
+** New command SOURCE
+Execute a file of mixsim commands.
+
+** New command ADDRESS.
+This command takes as its argument a breakpoint manipulation command
+(DELETE, IGNORE, ENABLE, DISABLE, PASSCOUNT) with arguments
+appropriate for the associated command.  However, the first argument
+of the corresponding command is treated as MIX address, instead of a
+breakpoint number.
+
+** New command INFO.
+An alias to LIST.
+
+** New command SHELL.
+Executes a subordinate shell or a shell command. Abbreviated to !.
+
+** NEXT and STEP take optional argument.
+The argument, if given, specifies number of instructions to
+execute. Default is 1.
+
+** INFO BREAK takes an optional argument specifying breakpoint number to list.
+If prefixed with ADDRESS, it treats the argument as a MIX location and
+lists all breakpoints set on that location.
+
+
+Version 1.2
+
+* New terminal mode (mixsim -t) allows to debug MIXAL programs
+* New option -r to mixal allows to produce 'raw' MIX programs. It is useful to
+experiment with loader routines.
+* Mixal can produce a cross-reference listing (mixal -x).
+* Mixal prints a warning if an ALF constant is preceeded by more than two 
+spaces and followed by a printable character.
+
+
+* Previous entries by Douglas Laing
+
+99/04/22  remove requirement for trailing blanks in ALF statements
+99/04/13  version 1.02
+99/04/13  gcc compilation of mixal generates many integer overflow messages
+99/04/13  mixal uses locations instead of line numbers to order local symbols
+98/08/19  version 1.01
+98/08/19  mixal crashes under linux because of a null pointer
+
+
+Copyright information:
+
+Copyright (C) 1998, 1999, 2000 Douglas Laing
+Copyright (C) 2000, 2005, 2007 Sergey Poznyakoff
+
+   Permission is granted to anyone to make or distribute verbatim copies
+   of this document as received, in any medium, provided that the
+   copyright notice and this permission notice are preserved,
+   thus giving the recipient permission to redistribute in turn.
+
+   Permission is granted to distribute modified versions
+   of this document, or of portions of it,
+   under the above conditions, provided also that they
+   carry prominent notices stating who last changed them.
+
+
+Local variables:
+mode: outline
+paragraph-separate: "[ 	]*$"
+eval: (add-hook 'write-file-hooks 'time-stamp)
+time-stamp-start: "changes. "
+time-stamp-format: "%:y-%02m-%02d"
+time-stamp-end: "\n"
+end:

@@ -1,0 +1,44 @@
+\I\\{addref}, \[5].
+\I\\{address}, \[4].
+\I\|{c}, \[5].
+\I\\{debug}, \[5].
+\I\\{fmt}, \[5].
+\I\\{fp}, \[5].
+\I\\{fun}, 5.
+\I\\{init\_lex}, \[5].
+\I\\{install}, \[5].
+\I\\{install\_op}, \[5].
+\I\\{iterate}, \[5].
+\I\|{l}, \[5].
+\I\\{line}, \[3], \[4], \[5].
+\I\\{loc}, \[5].
+\I\\{localref}, \[2].
+\I\\{lookup}, \[5].
+\I\\{lookup\_op}, \[5].
+\I\\{mix\_op}, 5.
+\I\\{name}, 2, \[3].
+\I\\{next}, \[4].
+\I\\{op}, \[5].
+\I\|{p}, \[5].
+\I\\{parse\_error}, \[5].
+\I\\{parse\_error\_l}, \[5].
+\I\&{ref}, 3, \[4], 5.
+\I\\{reflist}, \[3].
+\I\\{reset\_lex}, \[5].
+\I\|{s}, \[5].
+\I\\{sort\_refs}, \[5].
+\I\\{sort\_symbols}, \[5].
+\I\\{strchr}, 2.
+\I\&{Symbol}, \[3], 5.
+\I\|{t}, \[5].
+\I\\{tlist}, \[5].
+\I\\{true}, 2.
+\I\\{type}, \[3].
+\I\|{v}, \[5].
+\I\\{value}, \[3].
+\I\\{warning}, \[5].
+\I\\{warning\_l}, \[5].
+\I\\{xref}, \[3].
+\I\\{yyerror}, \[5].
+\I\\{yylex}, \[5].
+

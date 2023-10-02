@@ -1,0 +1,18 @@
+TODO file for MIX package
+
+* Accept breakpoint locations in FILE:LINE form.
+
+* Print original source lines with disassembled code.
+
+* DM shuld be able to operate on MIX symbols, e.g. DM MARCH should print the 
+contents of the variable MARCH.
+
+* Implement SET REGISTER and SET MEMORY (SET VAR?) debugging commands.
+
+* Finish the elisp version of mixsim.
+
+
+Local variables:
+mode: outline
+paragraph-separate: "[ 	]*$"
+end:
